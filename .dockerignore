@@ -1,0 +1,11 @@
+.git
+.agents
+secrets
+**/secrets
+*.env
+!.env.example
+*cookie*
+*.log
+tmp
+__pycache__
+*.pyc

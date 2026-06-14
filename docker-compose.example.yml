@@ -1,0 +1,26 @@
+services:
+  instafix:
+    build: .
+    image: instafix-revived:local
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Optional. Must point to localhost/loopback from the app container/network.
+      # AUTH_HELPER_URL: http://127.0.0.1:3200
+      PREVIEW_VIDEO_PROXY_ENABLED: "false"
+
+  # Optional authenticated fallback helper. Keep it local/private.
+  auth-helper:
+    build: ./auth-helper
+    image: instafix-auth-helper:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3200:3200"
+    environment:
+      AUTH_HELPER_LISTEN: 0.0.0.0:3200
+      AUTH_HELPER_MAX_PER_MINUTE: "20"
+      AUTH_HELPER_AUTH_MAX_PER_MINUTE: "6"
+      AUTH_HELPER_ENABLE_VIDEO_PROXY: "false"
+    volumes:
+      - ./secrets/instagram_cookie:/run/secrets/instagram_cookie:ro

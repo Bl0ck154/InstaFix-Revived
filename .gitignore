@@ -1,0 +1,51 @@
+# Allowlisting gitignore template for GO projects prevents us
+# from adding various unwanted local files, such as generated
+# files, developer configurations or IDE-specific files etc.
+#
+# Recommended: Go.AllowList.gitignore
+
+# Ignore everything
+*
+
+# But not these files...
+!/.gitignore
+!/.gitattributes
+!/.dockerignore
+
+!*.go
+!go.sum
+!go.mod
+!handlers/scraper/dictionary.bin
+
+!README.md
+!TESTING.md
+!CONTRIBUTING.md
+!SECURITY.md
+!AGENTS.md
+!.env.example
+!LICENSE
+!Dockerfile
+!auth-helper/*.py
+!auth-helper/Dockerfile
+!auth-helper/requirements.txt
+!Caddyfile
+!docker-compose.example.yml
+!scripts/*.yml
+!scripts/*.yaml
+!scripts/*.sh
+
+# Never track local/session secrets.
+secrets/
+**/secrets/
+*cookie*
+!scripts/update-instagram-cookie.sh
+*.env
+!.env.example
+
+# !Makefile
+
+# ...even if they are in subdirectories
+!*/
+
+# Local agent/plugin installations.
+.agents/
