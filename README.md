@@ -1,28 +1,86 @@
 # InstaFix Revived
 
-> Instagram is a trademark of Instagram, Inc. This project is independent and is not affiliated with Instagram, Meta, or Instagram, Inc.
+> Better Instagram previews for chats — public posts, Reels, thumbnails, captions, and playable media when available.
 
-InstaFix Revived is a maintained, lightweight continuation of [Wikidepia/InstaFix](https://github.com/Wikidepia/InstaFix). It serves cleaner OpenGraph/Twitter-card previews for public Instagram posts and Reels, with playable media links when Instagram exposes usable media URLs.
+**InstaFix Revived** is a maintained, lightweight continuation of [Wikidepia/InstaFix](https://github.com/Wikidepia/InstaFix). It fixes the boring/broken Instagram embeds you often get in Telegram, Discord, Slack, WhatsApp, and other chat apps by serving cleaner OpenGraph/Twitter-card preview pages.
 
-## Features
+## Try it now
 
-- Public-first Instagram metadata scraping.
-- Rich preview pages for posts, Reels, stories-style paths, images, and videos.
-- Optional local authenticated fallback helper using `curl_cffi` for restricted content.
-- Optional selective preview-client video proxy with strict limits, disabled by default.
-- Minimal JSON homepage preview endpoint that does not expose Instagram CDN URLs.
-- Structured JSON logs to stdout.
+Use the public instance:
 
-## Quick start
+### [instagram7.com](https://www.instagram7.com/)
+
+Paste an Instagram post or Reel into the converter, or manually replace the host:
+
+```text
+https://www.instagram.com/reel/POST_ID/
+```
+
+becomes:
+
+```text
+https://www.instagram7.com/reel/POST_ID/
+```
+
+That is it. Send the converted link in your chat app and it should generate a cleaner preview.
+
+> The public instance is maintained by [Bl0ck154](https://github.com/Bl0ck154). If it helps you, consider starring this repository or supporting the project.
+
+## What it does
+
+- Creates cleaner rich previews for public Instagram posts and Reels.
+- Shows author, caption, thumbnail, and media metadata where available.
+- Supports image and video preview routes.
+- Keeps normal browser media traffic lightweight with direct redirects.
+- Includes an optional local auth-helper for difficult/restricted cases.
+- Includes an optional selective video proxy for preview bots, disabled by default.
+- Avoids exposing direct Instagram CDN URLs in the minimal homepage JSON preview API.
+
+## Why this exists
+
+Instagram links often preview poorly outside Instagram. Sometimes the caption is missing, sometimes Reels do not play, and sometimes the preview is just ugly or incomplete.
+
+InstaFix Revived sits between the chat app and Instagram, reads public metadata, and returns a small preview page with friendlier embed tags.
+
+It is inspired by projects like `fxtwitter.com` and derived from the original [InstaFix](https://github.com/Wikidepia/InstaFix).
+
+## Example usage
+
+For the hosted service:
+
+```text
+instagram.com  ->  instagram7.com
+www.instagram.com  ->  www.instagram7.com
+```
+
+Examples:
+
+```text
+https://www.instagram.com/p/POST_ID/
+https://www.instagram7.com/p/POST_ID/
+```
+
+```text
+https://www.instagram.com/reel/POST_ID/
+https://www.instagram7.com/reel/POST_ID/
+```
+
+If you self-host, replace `instagram7.com` with your own domain.
+
+## Self-host quick start
 
 ```sh
 go build
 ./instafix -listen 127.0.0.1:3000
 ```
 
-Then open `http://127.0.0.1:3000/`.
+Then open:
 
-To use it publicly, deploy behind a reverse proxy and replace `instagram.com` in a post/Reel URL with your own domain.
+```text
+http://127.0.0.1:3000/
+```
+
+Put it behind Caddy, Nginx, Traefik, or another reverse proxy and point your own domain at it.
 
 ## Docker
 
@@ -31,11 +89,13 @@ docker build -t instafix-revived:local .
 docker run --rm -p 3000:3000 instafix-revived:local
 ```
 
-See `docker-compose.example.yml` for an app + optional auth-helper example.
+See [`docker-compose.example.yml`](./docker-compose.example.yml) for an app + optional auth-helper example.
 
 ## Optional auth helper
 
-The auth helper can use an Instagram `Cookie` header to recover metadata for content that public scraping cannot access. Keep it loopback-only and mount cookies from files outside Git.
+Most requests should use public scraping only. For content that public scraping cannot access, InstaFix Revived can optionally call a **local-only** helper service that uses `curl_cffi` and an Instagram `Cookie` header stored outside Git.
+
+Build and run the helper:
 
 ```sh
 docker build -t instafix-auth-helper:local auth-helper
@@ -55,11 +115,26 @@ AUTH_HELPER_URL=http://127.0.0.1:3200 ./instafix
 
 ## Safety notes
 
-- Do not commit cookies, `.env` files, tokens, production configs, or logs.
-- Do not expose the auth helper to the public internet.
-- Use conservative rate limits and a dedicated account if you enable authenticated fallback.
-- The video proxy is disabled by default; if enabled, restrict it to known preview clients and low concurrency.
+- Do **not** commit cookies, `.env` files, tokens, logs, or production configs.
+- Do **not** expose the auth helper to the public internet.
+- Use conservative rate limits if authenticated fallback is enabled.
+- Keep the video proxy disabled unless you really need it.
+- If you enable the video proxy, restrict it to known preview clients and low concurrency.
+
+## Support the project
+
+If you use the public instance at [instagram7.com](https://www.instagram7.com/) or self-host this project, a star on GitHub helps a lot.
+
+You can also support the maintainer here:
+
+- GitHub: [@Bl0ck154](https://github.com/Bl0ck154)
+- GitHub Sponsors: [github.com/sponsors/Bl0ck154](https://github.com/sponsors/Bl0ck154)
+- PayPal: [paypal.me/IlliaZabolotskyi](https://paypal.me/IlliaZabolotskyi)
 
 ## Attribution
 
-Maintained by [Bl0ck154](https://github.com/Bl0ck154). Derived from and inspired by [Wikidepia/InstaFix](https://github.com/Wikidepia/InstaFix).
+Maintained by [Bl0ck154](https://github.com/Bl0ck154).
+
+Derived from and inspired by [Wikidepia/InstaFix](https://github.com/Wikidepia/InstaFix).
+
+Instagram is a trademark of Instagram, Inc. This project is independent and is not affiliated with Instagram, Meta, or Instagram, Inc.
