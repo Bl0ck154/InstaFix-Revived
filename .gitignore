@@ -30,6 +30,7 @@
 !auth-helper/requirements.txt
 !Caddyfile
 !docker-compose.example.yml
+!.github/assets/*.jpg
 !scripts/*.yml
 !scripts/*.yaml
 !scripts/*.sh

@@ -10,21 +10,27 @@ Use the public instance:
 
 ### [instagram7.com](https://www.instagram7.com/)
 
-Paste an Instagram post or Reel into the converter, or manually replace the host:
+Just add **`7`** after `instagram` in the URL, then send the link in your messenger.
 
 ```text
 https://www.instagram.com/reel/POST_ID/
 ```
 
-becomes:
+turns into:
 
 ```text
 https://www.instagram7.com/reel/POST_ID/
 ```
 
-That is it. Send the converted link in your chat app and it should generate a cleaner preview.
+That is it — same Instagram link, but with a better preview.
 
 > The public instance is maintained by [Bl0ck154](https://github.com/Bl0ck154). If it helps you, consider starring this repository or supporting the project.
+
+## Preview
+
+Add `7` to the Instagram URL and your chat app gets a cleaner embed:
+
+<img src=".github/assets/orig_embed.jpg" width="450" alt="Fixed Instagram embed preview">
 
 ## What it does
 
@@ -66,6 +72,18 @@ https://www.instagram7.com/reel/POST_ID/
 ```
 
 If you self-host, replace `instagram7.com` with your own domain.
+
+## More preview modes
+
+The original InstaFix project also showed examples for media-focused and gallery-style previews. InstaFix Revived keeps the same idea: make Instagram links easier to share and nicer to preview.
+
+### Media-focused preview
+
+<img src=".github/assets/media_only.jpg" width="450" alt="Media-only Instagram preview">
+
+### Gallery-style preview
+
+<img src=".github/assets/no_caption.jpg" width="450" alt="Gallery-style Instagram preview">
 
 ## Self-host quick start
 
