@@ -50,6 +50,7 @@ You can also support the maintainer here:
 
 - GitHub: [@Bl0ck154](https://github.com/Bl0ck154)
 - GitHub Sponsors: [github.com/sponsors/Bl0ck154](https://github.com/sponsors/Bl0ck154)
+- Buy Me a Coffee: [buymeacoffee.com/bl0ck](https://buymeacoffee.com/bl0ck)
 - PayPal: [paypal.me/IlliaZabolotskyi](https://paypal.me/IlliaZabolotskyi)
 
 ## Attribution
