@@ -21,7 +21,6 @@
 !TESTING.md
 !CONTRIBUTING.md
 !SECURITY.md
-!AGENTS.md
 !.env.example
 !LICENSE
 !Dockerfile
@@ -33,13 +32,11 @@
 !.github/assets/*.jpg
 !scripts/*.yml
 !scripts/*.yaml
-!scripts/*.sh
 
 # Never track local/session secrets.
 secrets/
 **/secrets/
 *cookie*
-!scripts/update-instagram-cookie.sh
 *.env
 !.env.example
 
