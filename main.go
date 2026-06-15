@@ -200,15 +200,29 @@ func evictCache() {
 		if dataBucket == nil {
 			return nil
 		}
+		freshBucket := tx.Bucket([]byte("fresh"))
 		c := ttlBucket.Cursor()
 		for k, v := c.First(); k != nil; k, v = c.Next() {
 			if n, err := strconv.ParseInt(utils.B2S(k), 10, 64); err == nil {
 				if n < curTime {
 					ttlBucket.Delete(k)
 					dataBucket.Delete(v)
+					if freshBucket != nil {
+						freshBucket.Delete(v)
+					}
 				}
 			} else {
 				slog.Error("Failed to parse expire timestamp in cache", "err", err)
+			}
+		}
+		if negativeBucket := tx.Bucket([]byte("negative")); negativeBucket != nil {
+			c := negativeBucket.Cursor()
+			for k, v := c.First(); k != nil; k, v = c.Next() {
+				raw := utils.B2S(v)
+				expRaw := strings.SplitN(raw, "\t", 2)[0]
+				if n, err := strconv.ParseInt(expRaw, 10, 64); err == nil && n < curTime {
+					negativeBucket.Delete(k)
+				}
 			}
 		}
 		return nil

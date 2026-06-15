@@ -45,7 +45,13 @@ func InitDB() error {
 		if _, err := tx.CreateBucketIfNotExists([]byte("data")); err != nil {
 			return err
 		}
-		_, err := tx.CreateBucketIfNotExists([]byte("ttl"))
+		if _, err := tx.CreateBucketIfNotExists([]byte("ttl")); err != nil {
+			return err
+		}
+		if _, err := tx.CreateBucketIfNotExists([]byte("fresh")); err != nil {
+			return err
+		}
+		_, err := tx.CreateBucketIfNotExists([]byte("negative"))
 		return err
 	})
 	if err != nil {

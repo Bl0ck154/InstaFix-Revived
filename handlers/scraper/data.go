@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -36,7 +37,11 @@ var (
 	transport         http.RoundTripper
 	transportNoProxy  *http.Transport
 	sflightScraper    singleflight.Group
+	sflightAuthHelper singleflight.Group
 	remoteZSTDReader  *zstd.Decoder
+	cacheFreshTTL     = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
+	cacheStaleTTL     = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
+	negativeCacheTTL  = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
 )
 
 //go:embed dictionary.bin
@@ -89,34 +94,24 @@ func GetData(postID string) (*InstaData, error) {
 		return nil, errors.New("postID is not a valid Instagram post ID")
 	}
 
-	i := &InstaData{PostID: postID}
-	err := DB.View(func(tx *bolt.Tx) error {
-		b := tx.Bucket([]byte("data"))
-		if b == nil {
-			return nil
-		}
-		v := b.Get([]byte(postID))
-		if v == nil {
-			return nil
-		}
-		err := binary.Unmarshal(v, i)
-		if err != nil {
-			slog.Warn("Failed to unmarshal cached data; ignoring stale cache", "postID", postID, "err", err)
-			*i = InstaData{PostID: postID}
-			return nil
-		}
-		slog.Debug("Data parsed from cache", "postID", postID)
-		return nil
-	})
+	cached, cacheFound, cacheFresh, err := loadDataFromCache(postID)
 	if err != nil {
 		observability.Default.RecordDBError("cache_read", err)
 		return nil, err
 	}
 
-	// Successfully parsed from cache
-	if len(i.Medias) != 0 {
+	if cacheFresh {
 		observability.Default.RecordCacheHit()
-		return i, nil
+		return cached, nil
+	}
+
+	if reason, ok := negativeCacheHit(postID); ok {
+		if cacheFound {
+			observability.Default.RecordCacheHit()
+			slog.Debug("Using stale cached data due to negative cache", "postID", postID, "reason", reason)
+			return cached, nil
+		}
+		return nil, errorForNegativeReason(reason)
 	}
 
 	ret, err, _ := sflightScraper.Do(postID, func() (interface{}, error) {
@@ -139,6 +134,12 @@ func GetData(postID string) (*InstaData, error) {
 		return item, nil
 	})
 	if err != nil {
+		saveNegativeCacheIfUseful(postID, err)
+		if cacheFound {
+			observability.Default.RecordCacheHit()
+			slog.Warn("Using stale cached data after scrape failure", "postID", postID, "err", err)
+			return cached, nil
+		}
 		return nil, err
 	}
 	return ret.(*InstaData), nil
@@ -166,8 +167,12 @@ func RefreshDataFromAuthHelper(postID string) (*InstaData, error) {
 	if !validPostID(postID) {
 		return nil, errors.New("postID is not a valid Instagram post ID")
 	}
+	if reason, ok := negativeCacheHit(postID); ok {
+		return nil, errorForNegativeReason(reason)
+	}
 	item := &InstaData{PostID: postID}
-	if err := scrapeAuthHelper(item); err != nil {
+	if err := scrapeAuthHelperSingleflight(item); err != nil {
+		saveNegativeCacheIfUseful(postID, err)
 		return nil, err
 	}
 	if len(item.Medias) == 0 {
@@ -218,19 +223,33 @@ func saveDataToCache(item *InstaData) error {
 		return err
 	}
 
+	now := time.Now()
+	freshExp := now.Add(cacheFreshTTL)
+	staleExp := now.Add(cacheStaleTTL)
+	if staleExp.Before(freshExp) {
+		staleExp = freshExp
+	}
 	err = DB.Batch(func(tx *bolt.Tx) error {
 		dataBucket := tx.Bucket([]byte("data"))
 		if dataBucket == nil {
 			return nil
 		}
+		deleteTTLForPost(tx.Bucket([]byte("ttl")), item.PostID)
 		dataBucket.Put(utils.S2B(item.PostID), bb)
 
 		ttlBucket := tx.Bucket([]byte("ttl"))
 		if ttlBucket == nil {
 			return nil
 		}
-		expTime := strconv.FormatInt(time.Now().Add(24*time.Hour).UnixNano(), 10)
+		expTime := strconv.FormatInt(staleExp.UnixNano(), 10)
 		ttlBucket.Put(utils.S2B(expTime), utils.S2B(item.PostID))
+
+		if freshBucket := tx.Bucket([]byte("fresh")); freshBucket != nil {
+			freshBucket.Put(utils.S2B(item.PostID), utils.S2B(strconv.FormatInt(freshExp.UnixNano(), 10)))
+		}
+		if negativeBucket := tx.Bucket([]byte("negative")); negativeBucket != nil {
+			negativeBucket.Delete(utils.S2B(item.PostID))
+		}
 		return nil
 	})
 	if err != nil {
@@ -239,6 +258,202 @@ func saveDataToCache(item *InstaData) error {
 		return err
 	}
 	return nil
+}
+
+func loadDataFromCache(postID string) (*InstaData, bool, bool, error) {
+	item := &InstaData{PostID: postID}
+	fresh := false
+	found := false
+	err := DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("data"))
+		if b == nil {
+			return nil
+		}
+		v := b.Get([]byte(postID))
+		if v == nil {
+			return nil
+		}
+		if err := binary.Unmarshal(v, item); err != nil {
+			slog.Warn("Failed to unmarshal cached data; ignoring stale cache", "postID", postID, "err", err)
+			return nil
+		}
+		if len(item.Medias) == 0 {
+			return nil
+		}
+		found = true
+		fresh = isCacheFresh(tx, postID, time.Now())
+		return nil
+	})
+	if err != nil {
+		return nil, false, false, err
+	}
+	if found {
+		slog.Debug("Data parsed from cache", "postID", postID, "fresh", fresh)
+	}
+	return item, found, fresh, nil
+}
+
+func isCacheFresh(tx *bolt.Tx, postID string, now time.Time) bool {
+	b := tx.Bucket([]byte("fresh"))
+	if b != nil {
+		raw := b.Get([]byte(postID))
+		if raw != nil {
+			exp, err := strconv.ParseInt(utils.B2S(raw), 10, 64)
+			return err == nil && exp > now.UnixNano()
+		}
+	}
+	// Backward compatibility for entries written before the separate fresh bucket
+	// existed: the old ttl bucket meant 24h freshness and hard eviction.
+	if ttlBucket := tx.Bucket([]byte("ttl")); ttlBucket != nil {
+		c := ttlBucket.Cursor()
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			if utils.B2S(v) != postID {
+				continue
+			}
+			exp, err := strconv.ParseInt(utils.B2S(k), 10, 64)
+			return err == nil && exp > now.UnixNano()
+		}
+	}
+	return false
+}
+
+func deleteTTLForPost(ttlBucket *bolt.Bucket, postID string) {
+	if ttlBucket == nil {
+		return
+	}
+	c := ttlBucket.Cursor()
+	for k, v := c.First(); k != nil; k, v = c.Next() {
+		if utils.B2S(v) == postID {
+			_ = c.Delete()
+		}
+	}
+}
+
+func scrapeAuthHelperSingleflight(i *InstaData) error {
+	ret, err, _ := sflightAuthHelper.Do(i.PostID, func() (interface{}, error) {
+		item := &InstaData{PostID: i.PostID}
+		if err := scrapeAuthHelper(item); err != nil {
+			return nil, err
+		}
+		return item, nil
+	})
+	if err != nil {
+		return err
+	}
+	item, ok := ret.(*InstaData)
+	if !ok || item == nil {
+		return errors.New("auth helper returned invalid shared result")
+	}
+	*i = *item
+	return nil
+}
+
+func negativeCacheHit(postID string) (string, bool) {
+	if negativeCacheTTL <= 0 || DB == nil || postID == "" {
+		return "", false
+	}
+	now := time.Now().UnixNano()
+	reason := ""
+	expired := false
+	_ = DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("negative"))
+		if b == nil {
+			return nil
+		}
+		raw := utils.B2S(b.Get([]byte(postID)))
+		if raw == "" {
+			return nil
+		}
+		parts := strings.SplitN(raw, "\t", 2)
+		exp, err := strconv.ParseInt(parts[0], 10, 64)
+		if err != nil || exp <= now {
+			expired = true
+			return nil
+		}
+		if len(parts) == 2 {
+			reason = parts[1]
+		} else {
+			reason = "unavailable"
+		}
+		return nil
+	})
+	if expired {
+		_ = DB.Batch(func(tx *bolt.Tx) error {
+			if b := tx.Bucket([]byte("negative")); b != nil {
+				return b.Delete([]byte(postID))
+			}
+			return nil
+		})
+	}
+	return reason, reason != ""
+}
+
+func saveNegativeCacheIfUseful(postID string, err error) {
+	if negativeCacheTTL <= 0 || DB == nil || postID == "" {
+		return
+	}
+	reason, ok := negativeReason(err)
+	if !ok {
+		return
+	}
+	exp := strconv.FormatInt(time.Now().Add(negativeCacheTTL).UnixNano(), 10)
+	value := exp + "\t" + reason
+	if dbErr := DB.Batch(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("negative"))
+		if b == nil {
+			return nil
+		}
+		return b.Put([]byte(postID), []byte(value))
+	}); dbErr != nil {
+		observability.Default.RecordDBError("negative_cache_write", dbErr)
+	}
+}
+
+func negativeReason(err error) (string, bool) {
+	if err == nil {
+		return "", false
+	}
+	if errors.Is(err, ErrRestricted) {
+		return "restricted", true
+	}
+	if errors.Is(err, ErrNotFound) {
+		return "not_found", true
+	}
+	msg := strings.ToLower(err.Error())
+	for _, token := range []string{"login_required", "checkpoint", "challenge", "cookie_missing", "auth_helper_unreachable", "context deadline", "timeout", "connection refused", "too many", " 429", "http 429", "http 5"} {
+		if strings.Contains(msg, token) {
+			return "", false
+		}
+	}
+	for _, token := range []string{"geoblock", "restricted", "private", "deleted", "not found", "unavailable", "media info http 400", "instagram_error", "scrapefromgql is blocked"} {
+		if strings.Contains(msg, token) {
+			return token, true
+		}
+	}
+	return "", false
+}
+
+func errorForNegativeReason(reason string) error {
+	switch reason {
+	case "restricted", "geoblock":
+		return ErrRestricted
+	case "not_found", "private", "deleted":
+		return ErrNotFound
+	default:
+		return fmt.Errorf("Instagram content unavailable: %s", reason)
+	}
+}
+
+func envDurationSeconds(name string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	seconds, err := strconv.Atoi(value)
+	if err != nil || seconds < 0 {
+		return fallback
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func validPostID(postID string) bool {
@@ -393,7 +608,7 @@ func (i *InstaData) ScrapeData() error {
 	if !item.Exists() {
 		item = gqlData.Get("xdt_shortcode_media")
 		if !item.Exists() {
-			if err := scrapeAuthHelper(i); err == nil {
+			if err := scrapeAuthHelperSingleflight(i); err == nil {
 				return nil
 			} else if err != ErrNotFound {
 				slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
@@ -460,7 +675,7 @@ func (i *InstaData) ScrapeData() error {
 
 	// Failed to scrape from Embed
 	if len(i.Medias) == 0 {
-		if err := scrapeAuthHelper(i); err == nil {
+		if err := scrapeAuthHelperSingleflight(i); err == nil {
 			return nil
 		} else if err != ErrNotFound {
 			slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
