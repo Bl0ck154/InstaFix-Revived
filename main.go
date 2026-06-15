@@ -107,6 +107,7 @@ func main() {
 
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.StripSlashes)
+	r.Use(newRequestProtectorFromEnv().Middleware)
 
 	r.Get("/tv/{postID}", handlers.Embed)
 	r.Get("/reel/{postID}", handlers.Embed)
