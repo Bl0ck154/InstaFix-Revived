@@ -38,10 +38,24 @@ var (
 	transportNoProxy  *http.Transport
 	sflightScraper    singleflight.Group
 	sflightAuthHelper singleflight.Group
-	remoteZSTDReader  *zstd.Decoder
 	cacheFreshTTL     = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
 	cacheStaleTTL     = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
 	negativeCacheTTL  = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
+)
+
+const (
+	maxRemoteScraperBodyBytes    int64 = 1 << 20
+	maxRemoteScraperDecodedBytes int64 = 2 << 20
+	maxInstagramEmbedBodyBytes   int64 = 2 << 20
+	maxTimeSliceJSONBytes        int64 = 2 << 20
+	maxGraphQLBodyBytes          int64 = 2 << 20
+	maxAuthHelperBodyBytes       int64 = 256 << 10
+	maxRestrictionBodyBytes      int64 = 64 << 10
+	maxCacheEntryBytes                 = 512 << 10
+	maxMediaItems                      = 20
+	maxMediaURLLength                  = 8192
+	maxCaptionLength                   = 4096
+	maxUsernameLength                  = 128
 )
 
 //go:embed dictionary.bin
@@ -78,15 +92,9 @@ func (i *InstaData) HasVideo() bool {
 }
 
 func init() {
-	var err error
 	transport = gzhttp.Transport(http.DefaultTransport, gzhttp.TransportAlwaysDecompress(true))
 	transportNoProxy = http.DefaultTransport.(*http.Transport).Clone()
 	transportNoProxy.Proxy = nil // Skip any proxy
-
-	remoteZSTDReader, err = zstd.NewReader(nil, zstd.WithDecoderLowmem(true), zstd.WithDecoderDicts(zstdDict))
-	if err != nil {
-		panic(err)
-	}
 }
 
 func GetData(postID string) (*InstaData, error) {
@@ -188,9 +196,24 @@ func RefreshDataFromAuthHelper(postID string) (*InstaData, error) {
 }
 
 func normalizeMediaURLs(item *InstaData) error {
+	if len(item.Username) > maxUsernameLength {
+		item.Username = item.Username[:maxUsernameLength]
+	}
+	if len(item.Caption) > maxCaptionLength {
+		item.Caption = item.Caption[:maxCaptionLength]
+	}
+	if len(item.Medias) > maxMediaItems {
+		item.Medias = item.Medias[:maxMediaItems]
+	}
 	// Replace public image CDN hosts with scontent.cdninstagram.com while preserving
 	// original video CDN hosts. Video URLs are signed and host-sensitive.
 	for n, media := range item.Medias {
+		if len(media.URL) > maxMediaURLLength {
+			return fmt.Errorf("media URL too large")
+		}
+		if len(media.ThumbnailURL) > maxMediaURLLength {
+			return fmt.Errorf("media thumbnail URL too large")
+		}
 		u, err := url.Parse(media.URL)
 		if err != nil {
 			return err
@@ -221,6 +244,9 @@ func saveDataToCache(item *InstaData) error {
 	if err != nil {
 		slog.Error("Failed to marshal data", "postID", item.PostID, "err", err)
 		return err
+	}
+	if len(bb) > maxCacheEntryBytes {
+		return fmt.Errorf("cache entry too large: %d bytes", len(bb))
 	}
 
 	now := time.Now()
@@ -273,11 +299,19 @@ func loadDataFromCache(postID string) (*InstaData, bool, bool, error) {
 		if v == nil {
 			return nil
 		}
+		if len(v) > maxCacheEntryBytes {
+			slog.Warn("Cached data too large; ignoring stale cache", "postID", postID, "size", len(v))
+			return nil
+		}
 		if err := binary.Unmarshal(v, item); err != nil {
 			slog.Warn("Failed to unmarshal cached data; ignoring stale cache", "postID", postID, "err", err)
 			return nil
 		}
 		if len(item.Medias) == 0 {
+			return nil
+		}
+		if err := normalizeMediaURLs(item); err != nil {
+			slog.Warn("Cached data failed validation; ignoring stale cache", "postID", postID, "err", err)
 			return nil
 		}
 		found = true
@@ -468,6 +502,36 @@ func validPostID(postID string) bool {
 	return true
 }
 
+func readLimitedBody(r io.Reader, limit int64) ([]byte, error) {
+	if limit <= 0 {
+		return nil, errors.New("invalid body limit")
+	}
+	body, err := io.ReadAll(io.LimitReader(r, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(body)) > limit {
+		return nil, fmt.Errorf("response body too large: limit %d bytes", limit)
+	}
+	return body, nil
+}
+
+func readLimitedHTTPBody(res *http.Response, limit int64) ([]byte, error) {
+	if res.ContentLength > limit {
+		return nil, fmt.Errorf("response body too large: content-length %d", res.ContentLength)
+	}
+	return readLimitedBody(res.Body, limit)
+}
+
+func decodeRemoteScraperBody(body []byte) ([]byte, error) {
+	reader, err := zstd.NewReader(bytes.NewReader(body), zstd.WithDecoderLowmem(true), zstd.WithDecoderDicts(zstdDict))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+	return readLimitedBody(reader, maxRemoteScraperDecodedBytes)
+}
+
 func (i *InstaData) ScrapeData() error {
 	// Scrape from remote scraper if available
 	if len(RemoteScraperAddr) > 0 {
@@ -480,9 +544,9 @@ func (i *InstaData) ScrapeData() error {
 		res, err := remoteClient.Do(req)
 		if err == nil && res != nil {
 			defer res.Body.Close()
-			remoteData, err := io.ReadAll(res.Body)
+			remoteData, err := readLimitedHTTPBody(res, maxRemoteScraperBodyBytes)
 			if err == nil && res.StatusCode == 200 {
-				remoteDecomp, err := remoteZSTDReader.DecodeAll(remoteData, nil)
+				remoteDecomp, err := decodeRemoteScraperBody(remoteData)
 				if err != nil {
 					slog.Warn("remote scraper decode failed; using local fallback", "postID", i.PostID, "err", err)
 				} else if err := binary.Unmarshal(remoteDecomp, i); err == nil {
@@ -517,7 +581,7 @@ func (i *InstaData) ScrapeData() error {
 				return errors.New("status code is not 200")
 			}
 
-			body, err = io.ReadAll(res.Body)
+			body, err = readLimitedHTTPBody(res, maxInstagramEmbedBodyBytes)
 			if err != nil {
 				return err
 			}
@@ -544,7 +608,15 @@ func (i *InstaData) ScrapeData() error {
 		if len(scriptText) > 0 {
 			// Remove <script>
 			findFirstMoreThan := bytes.Index(scriptText, []byte(">"))
-			scriptText = scriptText[findFirstMoreThan+1:]
+			if findFirstMoreThan < 0 {
+				scriptText = nil
+			} else {
+				scriptText = scriptText[findFirstMoreThan+1:]
+			}
+			if int64(len(scriptText)) > maxTimeSliceJSONBytes {
+				slog.Debug("Failed to parse data from TimeSliceImpl", "postID", i.PostID, "err", "script too large")
+				scriptText = nil
+			}
 
 			lexer := js.NewLexer(parse.NewInputBytes(scriptText))
 			for {
@@ -555,7 +627,15 @@ func (i *InstaData) ScrapeData() error {
 				if tt == js.StringToken && bytes.Contains(text, []byte("shortcode_media")) {
 					// Strip quotes from start and end
 					text = text[1 : len(text)-1]
+					if int64(len(text)) > maxTimeSliceJSONBytes {
+						slog.Debug("Failed to parse data from TimeSliceImpl", "postID", i.PostID, "err", "JSON string too large")
+						continue
+					}
 					unescapeData := utils.UnescapeJSONString(utils.B2S(text))
+					if int64(len(unescapeData)) > maxTimeSliceJSONBytes {
+						slog.Debug("Failed to parse data from TimeSliceImpl", "postID", i.PostID, "err", "unescaped JSON too large")
+						continue
+					}
 					if !gjson.Valid(unescapeData) {
 						slog.Debug("Failed to parse data from TimeSliceImpl", "postID", i.PostID, "err", "invalid JSON")
 						continue
@@ -629,6 +709,9 @@ func (i *InstaData) ScrapeData() error {
 	media := []gjson.Result{item}
 	if item.Get("edge_sidecar_to_children").Exists() {
 		media = item.Get("edge_sidecar_to_children.edges").Array()
+	}
+	if len(media) > maxMediaItems {
+		media = media[:maxMediaItems]
 	}
 
 	// Get username
@@ -782,7 +865,7 @@ func scrapeRestriction(postID string) error {
 		return nil
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(res.Body, 64*1024))
+	body, err := readLimitedHTTPBody(res, maxRestrictionBodyBytes)
 	if err != nil || !gjson.ValidBytes(body) {
 		return nil
 	}
@@ -825,7 +908,7 @@ func scrapeAuthHelper(i *InstaData) error {
 		return err
 	}
 	defer res.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(res.Body, 256*1024))
+	body, err := readLimitedHTTPBody(res, maxAuthHelperBodyBytes)
 	if err != nil {
 		return err
 	}
@@ -935,7 +1018,7 @@ func scrapeFromGQL(postID string) ([]byte, error) {
 	if res.StatusCode/100 != 2 {
 		return nil, fmt.Errorf("GraphQL HTTP status %s", res.Status)
 	}
-	body, err := io.ReadAll(res.Body)
+	body, err := readLimitedHTTPBody(res, maxGraphQLBodyBytes)
 	if err != nil {
 		return nil, err
 	}

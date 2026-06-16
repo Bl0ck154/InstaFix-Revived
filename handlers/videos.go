@@ -18,6 +18,18 @@ var PreviewVideoProxyEnabled bool
 var PreviewVideoProxyUserAgents = []string{"telegrambot", "discordbot", "facebookexternalhit", "whatsapp", "slackbot", "twitterbot", "xbot", "skypeuripreview", "linkedinbot"}
 var PreviewVideoProxyTimeout = 25 * time.Second
 
+const maxPreviewVideoProxyBytes int64 = 50 << 20
+
+var previewVideoProxyClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy:                 nil,
+		ResponseHeaderTimeout: PreviewVideoProxyTimeout,
+		IdleConnTimeout:       30 * time.Second,
+		MaxIdleConns:          10,
+		MaxIdleConnsPerHost:   2,
+	},
+}
+
 func ConfigurePreviewVideoProxy(enabled bool, allowlist string) {
 	PreviewVideoProxyEnabled = enabled
 	if strings.TrimSpace(allowlist) == "" {
@@ -39,6 +51,9 @@ func ConfigurePreviewVideoProxy(enabled bool, allowlist string) {
 func ConfigurePreviewVideoProxyTimeout(seconds int) {
 	if seconds > 0 {
 		PreviewVideoProxyTimeout = time.Duration(seconds) * time.Second
+		if transport, ok := previewVideoProxyClient.Transport.(*http.Transport); ok {
+			transport.ResponseHeaderTimeout = PreviewVideoProxyTimeout
+		}
 	}
 }
 
@@ -117,8 +132,7 @@ func proxyVideoThroughAuthHelper(w http.ResponseWriter, r *http.Request, postID,
 	if rangeHeader := r.Header.Get("Range"); rangeHeader != "" {
 		req.Header.Set("Range", rangeHeader)
 	}
-	client := http.Client{Transport: &http.Transport{ResponseHeaderTimeout: PreviewVideoProxyTimeout}}
-	res, err := client.Do(req)
+	res, err := previewVideoProxyClient.Do(req)
 	if err != nil || res == nil {
 		if err == nil {
 			err = http.ErrAbortHandler
@@ -131,15 +145,30 @@ func proxyVideoThroughAuthHelper(w http.ResponseWriter, r *http.Request, postID,
 		slog.Warn("preview video proxy helper rejected request", "postID", postID, "status", res.Status)
 		return false
 	}
+	if res.ContentLength > maxPreviewVideoProxyBytes {
+		slog.Warn("preview video proxy helper response too large", "postID", postID, "contentLength", res.ContentLength)
+		return false
+	}
+	contentLength := res.Header.Get("Content-Length")
+	if res.ContentLength < 0 || res.ContentLength > maxPreviewVideoProxyBytes {
+		contentLength = ""
+	}
 	for _, key := range []string{"Content-Type", "Content-Length", "Content-Range", "Accept-Ranges", "Last-Modified", "ETag", "Cache-Control"} {
-		if value := res.Header.Get(key); value != "" {
+		value := res.Header.Get(key)
+		if key == "Content-Length" {
+			value = contentLength
+		}
+		if value != "" {
 			w.Header().Set(key, value)
 		}
 	}
 	w.WriteHeader(res.StatusCode)
 	if r.Method != http.MethodHead {
-		if _, err := io.Copy(w, res.Body); err != nil {
+		limited := &io.LimitedReader{R: res.Body, N: maxPreviewVideoProxyBytes}
+		if _, err := io.Copy(w, limited); err != nil {
 			slog.Warn("preview video proxy client copy failed", "postID", postID, "err", err)
+		} else if limited.N == 0 {
+			slog.Warn("preview video proxy byte limit reached", "postID", postID, "maxBytes", maxPreviewVideoProxyBytes)
 		}
 	}
 	slog.Info("preview video proxied through auth helper", "postID", postID, "status", res.StatusCode)

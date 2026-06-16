@@ -34,6 +34,8 @@ VIDEO_PROXY_TIMEOUT = float(os.environ.get("AUTH_HELPER_VIDEO_PROXY_TIMEOUT_SECO
 VIDEO_PROXY_MAX_RESUME_ATTEMPTS = int(os.environ.get("AUTH_HELPER_VIDEO_PROXY_MAX_RESUME_ATTEMPTS", "256"))
 VIDEO_PROXY_UPSTREAM_CHUNK_BYTES = int(os.environ.get("AUTH_HELPER_VIDEO_PROXY_UPSTREAM_CHUNK_BYTES", "262144"))
 VIDEO_PROXY_UPSTREAM_CHUNK_TIMEOUT = float(os.environ.get("AUTH_HELPER_VIDEO_PROXY_UPSTREAM_CHUNK_TIMEOUT_SECONDS", "6"))
+AUTH_JSON_MAX_BYTES = int(os.environ.get("AUTH_HELPER_JSON_MAX_BYTES", "1048576"))
+AUTH_CACHE_MAX_ENTRIES = int(os.environ.get("AUTH_HELPER_CACHE_MAX_ENTRIES", "512"))
 POST_ID_RE = re.compile(r"^[A-Za-z0-9_-]{6,32}$")
 SHORTCODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
 VIDEO_PROXY_ALLOWED_HOST_SUFFIXES = (".cdninstagram.com", ".fbcdn.net")
@@ -332,6 +334,45 @@ def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False)
     return response
 
 
+def bounded_response_bytes(response, limit=AUTH_JSON_MAX_BYTES):
+    limit = max(1, int(limit or 1))
+    chunks = []
+    total = 0
+    try:
+        for chunk in response.iter_content(chunk_size=min(64 * 1024, limit)):
+            if not chunk:
+                continue
+            total += len(chunk)
+            if total > limit:
+                raise HelperError("response_too_large", f"upstream response exceeded {limit} bytes")
+            chunks.append(chunk)
+    finally:
+        with contextlib.suppress(Exception):
+            response.close()
+    return b"".join(chunks)
+
+
+def bounded_stream_prefix(response, limit=1024):
+    limit = max(1, int(limit or 1))
+    chunks = []
+    total = 0
+    try:
+        for chunk in response.iter_content(chunk_size=min(16 * 1024, limit)):
+            if not chunk:
+                continue
+            remaining = limit - total
+            if remaining <= 0:
+                break
+            chunks.append(chunk[:remaining])
+            total += min(len(chunk), remaining)
+            if total >= limit:
+                break
+    finally:
+        with contextlib.suppress(Exception):
+            response.close()
+    return b"".join(chunks)
+
+
 def cache_get(cache, key):
     now = time.time()
     with auth_cache_lock:
@@ -349,6 +390,14 @@ def cache_set(cache, key, value, ttl):
     if ttl <= 0:
         return
     with auth_cache_lock:
+        if len(cache) >= max(1, AUTH_CACHE_MAX_ENTRIES):
+            now = time.time()
+            expired = [k for k, item in cache.items() if item[0] <= now]
+            for expired_key in expired:
+                cache.pop(expired_key, None)
+            while len(cache) >= max(1, AUTH_CACHE_MAX_ENTRIES):
+                oldest_key = min(cache, key=lambda k: cache[k][0])
+                cache.pop(oldest_key, None)
         cache[key] = (time.time() + ttl, value)
 
 
@@ -433,19 +482,24 @@ def oembed(post_id, forced_account=None, bypass_cache=False):
         "x-requested-with": "XMLHttpRequest",
     }
     try:
-        r = auth_get(url, headers, post_id=post_id, account=account)
+        r = auth_get(url, headers, post_id=post_id, account=account, stream=True)
     except Exception as exc:
         code = classify_exception(exc)
         cache_negative(post_id, code, exc, account_id)
         raise
-    body = r.content[:1024 * 1024]
+    try:
+        body = bounded_response_bytes(r)
+    except HelperError as exc:
+        cache_negative(post_id, exc.code, exc, account_id)
+        raise
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except Exception:
+        data = {}
     if r.status_code != 200:
-        message = ""
-        try:
-            message = r.json().get("message", "")
-        except Exception:
-            if b"5xx Server Error" in body:
-                message = "instagram edge 5xx"
+        message = str((data or {}).get("message") or "") if isinstance(data, dict) else ""
+        if not message and b"5xx Server Error" in body:
+            message = "instagram edge 5xx"
         log("warn", "auth oembed unavailable; trying media info fallback", post_id=post_id, status=r.status_code, error=message[:120])
         try:
             payload = media_info_payload(post_id, str(shortcode_to_media_id(post_id)), account, post_url)
@@ -458,7 +512,8 @@ def oembed(post_id, forced_account=None, bypass_cache=False):
                 raise HelperError(code, f"Instagram oEmbed HTTP {r.status_code}: {message}", r.status_code)
             cache_negative(post_id, exc.code, exc, account_id)
             raise
-    data = r.json()
+    if not isinstance(data, dict):
+        raise HelperError("invalid_response", "Instagram oEmbed response is not a JSON object")
     thumbnail = str(data.get("thumbnail_url") or "")
     parsed = urlparse(thumbnail)
     if parsed.scheme not in ("http", "https") or not parsed.netloc:
@@ -550,18 +605,25 @@ def verify_video_url(url, referer):
         "referer": referer,
     }
     try:
-        r = requests.get(url, headers=headers, impersonate=IMPERSONATE, timeout=TIMEOUT, allow_redirects=False)
+        r = requests.get(url, headers=headers, impersonate=IMPERSONATE, timeout=TIMEOUT, allow_redirects=False, stream=True)
     except Exception as exc:
         log("warn", "video url verification request failed", error=str(exc)[:200])
         return False
-    content_type = (r.headers.get("content-type") or "").lower()
-    if r.status_code not in (200, 206):
-        log("warn", "video url verification rejected status", status=r.status_code, content_type=content_type[:80])
-        return False
-    if content_type and not ("video" in content_type or "octet-stream" in content_type):
-        log("warn", "video url verification rejected content type", status=r.status_code, content_type=content_type[:80])
-        return False
-    return True
+    try:
+        content_type = (r.headers.get("content-type") or "").lower()
+        if r.status_code not in (200, 206):
+            log("warn", "video url verification rejected status", status=r.status_code, content_type=content_type[:80])
+            return False
+        if r.status_code == 200 and content_length_too_large(r.headers):
+            log("warn", "video url verification rejected large response", content_length=r.headers.get("content-length"))
+            return False
+        if content_type and not ("video" in content_type or "octet-stream" in content_type):
+            log("warn", "video url verification rejected content type", status=r.status_code, content_type=content_type[:80])
+            return False
+        return True
+    finally:
+        with contextlib.suppress(Exception):
+            r.close()
 
 
 def select_video_url(versions, referer):
@@ -582,15 +644,19 @@ def fetch_media_info(media_id, account, referer):
         "x-asbd-id": "129477",
         "x-requested-with": "XMLHttpRequest",
     }
-    r = auth_get(url, headers, post_id=str(media_id), account=account)
+    r = auth_get(url, headers, post_id=str(media_id), account=account, stream=True)
+    body = bounded_response_bytes(r)
     if r.status_code != 200:
-        code = classify_instagram_error(r.status_code, r.content)
+        code = classify_instagram_error(r.status_code, body)
         mark_account_failure(account.account_id, code, str(media_id))
         raise HelperError(code, f"media info HTTP {r.status_code}", r.status_code)
-    data = r.json()
+    try:
+        data = json.loads(body.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise HelperError("invalid_response", "media info returned invalid JSON") from exc
     items = data.get("items") or []
     if not items:
-        code = classify_instagram_error(r.status_code, r.content, "empty_media_info")
+        code = classify_instagram_error(r.status_code, body, "empty_media_info")
         raise HelperError(code, "media info returned no items")
     return items[0]
 
@@ -745,7 +811,7 @@ def maybe_refreshed_video_urls(post_id, referer, current_url=""):
 
 def response_body_prefix(response, limit=1024):
     with contextlib.suppress(Exception):
-        return response.content[:limit]
+        return bounded_stream_prefix(response, limit)
     return b""
 
 
