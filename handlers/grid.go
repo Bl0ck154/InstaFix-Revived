@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"image"
 	"image/jpeg"
 	scraper "instafix/handlers/scraper"
@@ -12,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/RyanCarrier/dijkstra/v2"
@@ -22,6 +23,13 @@ import (
 )
 
 var timeout = 60 * time.Second
+
+const maxGridImages = 5
+const maxGridImageBytes int64 = 8 << 20
+const maxGridImagePixels int64 = 4_000_000
+const maxGridTotalPixels int64 = 10_000_000
+const maxGridCanvasPixels int64 = 12_000_000
+
 var transport = &http.Transport{
 	Proxy: nil, // Skip any proxy
 	DialContext: (&net.Dialer{
@@ -76,19 +84,32 @@ func avg(n []float64) float64 {
 // GenerateGrid generates a grid of images
 // based on https://blog.vjeux.com/2014/image/google-plus-layout-find-best-breaks.html
 func GenerateGrid(images []image.Image) (image.Image, error) {
+	if len(images) == 0 {
+		return nil, errors.New("no images for grid")
+	}
 	var imagesWH [][]float64
 	images = append(images, image.Rect(0, 0, 0, 0)) // Needed as for some reason the last image is not added
-	for _, image := range images {
-		imagesWH = append(imagesWH, []float64{float64(image.Bounds().Dx()), float64(image.Bounds().Dy())})
+	for _, img := range images {
+		if img == nil {
+			return nil, errors.New("nil image for grid")
+		}
+		bounds := img.Bounds()
+		if bounds.Dx() < 0 || bounds.Dy() < 0 {
+			return nil, errors.New("invalid image dimensions for grid")
+		}
+		imagesWH = append(imagesWH, []float64{float64(bounds.Dx()), float64(bounds.Dy())})
 	}
 
 	// Calculate canvas width by taking the average of width of all images
 	// There should be a better way to do this
 	var allWidth []float64
-	for _, image := range imagesWH {
-		allWidth = append(allWidth, image[0])
+	for _, img := range imagesWH {
+		allWidth = append(allWidth, img[0])
 	}
 	canvasWidth := int(avg(allWidth) * 1.5)
+	if canvasWidth <= 0 {
+		return nil, errors.New("invalid grid canvas width")
+	}
 
 	graph := dijkstra.NewGraph()
 	for i := range images {
@@ -115,6 +136,12 @@ func GenerateGrid(images []image.Image) (image.Image, error) {
 		heightRows = append(heightRows, rowHeight)
 		canvasHeight += rowHeight
 	}
+	if canvasHeight <= 0 {
+		return nil, errors.New("invalid grid canvas height")
+	}
+	if int64(canvasWidth)*int64(canvasHeight) > maxGridCanvasPixels {
+		return nil, fmt.Errorf("grid canvas too large: %dx%d", canvasWidth, canvasHeight)
+	}
 
 	canvas := image.NewRGBA(image.Rect(0, 0, canvasWidth, canvasHeight))
 
@@ -134,6 +161,54 @@ func GenerateGrid(images []image.Image) (image.Image, error) {
 		oldRowHeight += heightRow
 	}
 	return canvas, nil
+}
+
+func redirectGridFallback(w http.ResponseWriter, r *http.Request, postID string) {
+	http.Redirect(w, r, "/images/"+postID+"/1", http.StatusFound)
+}
+
+func decodeGridImage(client *http.Client, mediaURL string) (image.Image, int64, error) {
+	req, err := http.NewRequest(http.MethodGet, mediaURL, http.NoBody)
+	if err != nil {
+		return nil, 0, err
+	}
+	res, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, 0, fmt.Errorf("image upstream status %s", res.Status)
+	}
+	if res.ContentLength > maxGridImageBytes {
+		return nil, 0, fmt.Errorf("grid image too large: content-length %d", res.ContentLength)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(res.Body, maxGridImageBytes+1))
+	if err != nil {
+		return nil, 0, err
+	}
+	if int64(len(data)) > maxGridImageBytes {
+		return nil, 0, fmt.Errorf("grid image too large: downloaded more than %d bytes", maxGridImageBytes)
+	}
+
+	config, err := jpeg.DecodeConfig(bytes.NewReader(data))
+	if err != nil {
+		return nil, 0, err
+	}
+	pixels := int64(config.Width) * int64(config.Height)
+	if config.Width <= 0 || config.Height <= 0 || pixels <= 0 {
+		return nil, 0, fmt.Errorf("invalid grid image dimensions: %dx%d", config.Width, config.Height)
+	}
+	if pixels > maxGridImagePixels {
+		return nil, 0, fmt.Errorf("grid image dimensions too large: %dx%d", config.Width, config.Height)
+	}
+
+	img, err := jpeg.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, 0, err
+	}
+	return img, pixels, nil
 }
 
 func Grid(w http.ResponseWriter, r *http.Request) {
@@ -170,40 +245,34 @@ func Grid(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(item.Medias) == 1 || len(mediaURLs) == 1 {
-		http.Redirect(w, r, "/images/"+postID+"/1", http.StatusFound)
+		redirectGridFallback(w, r, postID)
+		return
+	}
+	if len(mediaURLs) == 0 {
+		http.Error(w, "no images for grid", http.StatusNotFound)
+		return
+	}
+	if len(mediaURLs) > maxGridImages {
+		slog.Warn("grid generation skipped: too many images", "postID", postID, "count", len(mediaURLs), "max", maxGridImages)
+		redirectGridFallback(w, r, postID)
 		return
 	}
 
 	_, err, _ = sflightGrid.Do(postID, func() (interface{}, error) {
-		var wg sync.WaitGroup
-		images := make([]image.Image, len(mediaURLs))
-		for i, mediaURL := range mediaURLs {
-			wg.Add(1)
-
-			go func(i int, url string) {
-				defer wg.Done()
-				client := http.Client{Transport: transport, Timeout: timeout}
-				req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
-				if err != nil {
-					return
-				}
-
-				// Make request client.Get
-				res, err := client.Do(req)
-				if err != nil {
-					slog.Error("Failed to get image", "postID", postID, "err", err)
-					return
-				}
-				defer res.Body.Close()
-
-				images[i], err = jpeg.Decode(res.Body)
-				if err != nil {
-					slog.Error("Failed to decode image", "postID", postID, "err", err)
-					return
-				}
-			}(i, mediaURL)
+		client := http.Client{Transport: transport, Timeout: timeout}
+		images := make([]image.Image, 0, len(mediaURLs))
+		var totalPixels int64
+		for _, mediaURL := range mediaURLs {
+			img, pixels, err := decodeGridImage(&client, mediaURL)
+			if err != nil {
+				return false, err
+			}
+			if totalPixels+pixels > maxGridTotalPixels {
+				return false, fmt.Errorf("grid total image dimensions too large: %d pixels", totalPixels+pixels)
+			}
+			totalPixels += pixels
+			images = append(images, img)
 		}
-		wg.Wait()
 
 		// Create grid Images
 		grid, err := GenerateGrid(images)
@@ -226,7 +295,8 @@ func Grid(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Warn("grid generation skipped; falling back to first image", "postID", postID, "err", err)
+		redirectGridFallback(w, r, postID)
 		return
 	}
 

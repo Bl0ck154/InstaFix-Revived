@@ -39,5 +39,10 @@ COPY --from=alpine:latest /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 # https://docs.docker.com/engine/reference/builder/#expose
 EXPOSE 3000
 
+# Keep Go memory spikes bounded by default. Grid generation also has hard
+# image/canvas limits in the application code.
+ENV GOMEMLIMIT=384MiB
+ENV GOGC=50
+
 # Run the app
 ENTRYPOINT ["/instafix"]
