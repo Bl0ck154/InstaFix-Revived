@@ -25,6 +25,7 @@ AUTH_COOLDOWN_SECONDS = int(os.environ.get("AUTH_HELPER_AUTH_COOLDOWN_SECONDS", 
 AUTH_CACHE_TTL_SECONDS = int(os.environ.get("AUTH_HELPER_AUTH_CACHE_TTL_SECONDS", "86400"))
 AUTH_NEGATIVE_CACHE_TTL_SECONDS = int(os.environ.get("AUTH_HELPER_AUTH_NEGATIVE_CACHE_TTL_SECONDS", "3600"))
 VERIFY_VIDEO_URL = os.environ.get("AUTH_HELPER_VERIFY_VIDEO_URL", "").strip().lower() in ("1", "true", "yes", "on")
+FETCH_VIDEO_INFO = os.environ.get("AUTH_HELPER_FETCH_VIDEO_INFO", "").strip().lower() in ("1", "true", "yes", "on")
 ENABLE_VIDEO_PROXY = os.environ.get("AUTH_HELPER_ENABLE_VIDEO_PROXY", "").strip().lower() in ("1", "true", "yes", "on")
 VIDEO_PROXY_SEND_COOKIE = os.environ.get("AUTH_HELPER_VIDEO_PROXY_SEND_COOKIE", "").strip().lower() in ("1", "true", "yes", "on")
 VIDEO_PROXY_REFRESH_MODE = os.environ.get("AUTH_HELPER_VIDEO_PROXY_REFRESH_MODE", "on_failure").strip().lower()
@@ -315,7 +316,7 @@ def allow_auth_request():
         return True
 
 
-def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False):
+def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False, mark_account_failures=True):
     require_auth_available(post_id)
     if not allow_auth_request():
         raise HelperError("auth_rate_limited", "authenticated request rate limited", 429)
@@ -323,7 +324,7 @@ def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False)
     if response.status_code in REDIRECT_STATUSES:
         location = response.headers.get("location", "")
         code = classify_redirect_location(location)
-        if code in AUTH_CIRCUIT_CODES:
+        if mark_account_failures and code in AUTH_CIRCUIT_CODES:
             if account is not None:
                 mark_account_failure(account.account_id, code, post_id)
             else:
@@ -524,11 +525,13 @@ def oembed(post_id, forced_account=None, bypass_cache=False):
     video_url = ""
     width = 0
     height = 0
-    if media_id:
+    if media_id and FETCH_VIDEO_INFO:
         try:
             video_url, width, height = media_info_video_url(media_id, account, post_url)
         except Exception as exc:
             log("warn", "auth media info video lookup failed", post_id=post_id, error=str(exc)[:300])
+    elif media_id:
+        log("info", "auth media info video lookup skipped", post_id=post_id, reason="disabled")
     if not author:
         author = "instagram"
     payload = {
@@ -633,7 +636,7 @@ def select_video_url(versions, referer):
     return "", 0, 0
 
 
-def fetch_media_info(media_id, account, referer):
+def fetch_media_info(media_id, account, referer, cooldown_on_auth_failure=True):
     url = f"https://www.instagram.com/api/v1/media/{quote(str(media_id), safe='')}/info/"
     headers = {
         "accept": "application/json,text/html,*/*",
@@ -644,11 +647,12 @@ def fetch_media_info(media_id, account, referer):
         "x-asbd-id": "129477",
         "x-requested-with": "XMLHttpRequest",
     }
-    r = auth_get(url, headers, post_id=str(media_id), account=account, stream=True)
+    r = auth_get(url, headers, post_id=str(media_id), account=account, stream=True, mark_account_failures=cooldown_on_auth_failure)
     body = bounded_response_bytes(r)
     if r.status_code != 200:
         code = classify_instagram_error(r.status_code, body)
-        mark_account_failure(account.account_id, code, str(media_id))
+        if cooldown_on_auth_failure:
+            mark_account_failure(account.account_id, code, str(media_id))
         raise HelperError(code, f"media info HTTP {r.status_code}", r.status_code)
     try:
         data = json.loads(body.decode("utf-8"))
@@ -694,7 +698,7 @@ def media_info_payload(post_id, media_id, account, referer):
 
 
 def media_info_video_url(media_id, account, referer):
-    item = fetch_media_info(media_id, account, referer)
+    item = fetch_media_info(media_id, account, referer, cooldown_on_auth_failure=False)
     versions = item.get("video_versions") or []
     if not versions:
         return "", 0, 0
@@ -776,7 +780,7 @@ def unique_urls(urls):
 
 def refreshed_video_urls(post_id, account, referer, current_url=""):
     try:
-        item = fetch_media_info(str(shortcode_to_media_id(post_id)), account, referer)
+        item = fetch_media_info(str(shortcode_to_media_id(post_id)), account, referer, cooldown_on_auth_failure=False)
     except Exception as exc:
         log("warn", "video proxy refresh lookup failed", post_id=post_id, error=str(exc)[:300])
         return []
@@ -1179,7 +1183,7 @@ def main():
         log("error", "auth helper cookie unavailable", error=str(exc))
         sys.exit(1)
     server = ThreadingHTTPServer((host, int(port_text)), Handler)
-    log("info", "auth helper listening", listen=LISTEN, impersonate=IMPERSONATE, cookie_file=bool(COOKIE_FILE), cookie_dir=bool(COOKIE_DIR), cookie_pool=pool, max_per_minute=MAX_PER_MINUTE, auth_max_per_minute=AUTH_MAX_PER_MINUTE, auth_cooldown_seconds=AUTH_COOLDOWN_SECONDS, auth_cache_ttl_seconds=AUTH_CACHE_TTL_SECONDS, auth_negative_cache_ttl_seconds=AUTH_NEGATIVE_CACHE_TTL_SECONDS, video_proxy=ENABLE_VIDEO_PROXY, video_proxy_send_cookie=VIDEO_PROXY_SEND_COOKIE, video_proxy_refresh_mode=VIDEO_PROXY_REFRESH_MODE, video_proxy_max_concurrent=VIDEO_PROXY_MAX_CONCURRENT, video_proxy_max_bytes=VIDEO_PROXY_MAX_BYTES, video_proxy_timeout=VIDEO_PROXY_TIMEOUT, video_proxy_max_resume_attempts=VIDEO_PROXY_MAX_RESUME_ATTEMPTS, video_proxy_upstream_chunk_bytes=VIDEO_PROXY_UPSTREAM_CHUNK_BYTES, video_proxy_upstream_chunk_timeout=VIDEO_PROXY_UPSTREAM_CHUNK_TIMEOUT)
+    log("info", "auth helper listening", listen=LISTEN, impersonate=IMPERSONATE, cookie_file=bool(COOKIE_FILE), cookie_dir=bool(COOKIE_DIR), cookie_pool=pool, max_per_minute=MAX_PER_MINUTE, auth_max_per_minute=AUTH_MAX_PER_MINUTE, auth_cooldown_seconds=AUTH_COOLDOWN_SECONDS, auth_cache_ttl_seconds=AUTH_CACHE_TTL_SECONDS, auth_negative_cache_ttl_seconds=AUTH_NEGATIVE_CACHE_TTL_SECONDS, fetch_video_info=FETCH_VIDEO_INFO, video_proxy=ENABLE_VIDEO_PROXY, video_proxy_send_cookie=VIDEO_PROXY_SEND_COOKIE, video_proxy_refresh_mode=VIDEO_PROXY_REFRESH_MODE, video_proxy_max_concurrent=VIDEO_PROXY_MAX_CONCURRENT, video_proxy_max_bytes=VIDEO_PROXY_MAX_BYTES, video_proxy_timeout=VIDEO_PROXY_TIMEOUT, video_proxy_max_resume_attempts=VIDEO_PROXY_MAX_RESUME_ATTEMPTS, video_proxy_upstream_chunk_bytes=VIDEO_PROXY_UPSTREAM_CHUNK_BYTES, video_proxy_upstream_chunk_timeout=VIDEO_PROXY_UPSTREAM_CHUNK_TIMEOUT)
     server.serve_forever()
 
 

@@ -133,6 +133,38 @@ class VideoProxyHelpersTest(unittest.TestCase):
             app.account_cooldowns.clear()
             app.account_cooldowns.update(old_cooldowns)
 
+    def test_oembed_skips_media_info_video_lookup_by_default(self):
+        account = app.CookieAccount("a", "sessionid=a; ds_user_id=a", "/tmp/a")
+        body = b'{"thumbnail_url":"https://scontent.cdninstagram.com/t.jpg","author_name":"user","title":"caption","media_id":"123"}'
+        response = mock.Mock(status_code=200)
+        response.iter_content.return_value = [body]
+        old_fetch_video_info = app.FETCH_VIDEO_INFO
+        try:
+            app.FETCH_VIDEO_INFO = False
+            with mock.patch("app.choose_cookie_account", return_value=account), mock.patch("app.auth_get", return_value=response), mock.patch("app.media_info_video_url") as media_info:
+                payload = app.oembed("POSTID", bypass_cache=True)
+            media_info.assert_not_called()
+            self.assertEqual(payload["video_url"], "")
+            self.assertEqual(payload["thumbnail_url"], "https://scontent.cdninstagram.com/t.jpg")
+        finally:
+            app.FETCH_VIDEO_INFO = old_fetch_video_info
+
+    def test_media_info_video_lookup_does_not_cooldown_account(self):
+        account = app.CookieAccount("a", "sessionid=a; ds_user_id=a", "/tmp/a")
+        old_cooldowns = dict(app.account_cooldowns)
+        try:
+            app.account_cooldowns.clear()
+            with mock.patch("app.requests.get") as get:
+                get.return_value.status_code = 302
+                get.return_value.headers = {"location": "https://www.instagram.com/accounts/login/"}
+                get.return_value.close.return_value = None
+                with self.assertRaises(app.HelperError):
+                    app.media_info_video_url("123", account, "https://www.instagram.com/reel/POSTID/")
+            self.assertNotIn("a", app.account_cooldowns)
+        finally:
+            app.account_cooldowns.clear()
+            app.account_cooldowns.update(old_cooldowns)
+
 
 if __name__ == "__main__":
     unittest.main()
