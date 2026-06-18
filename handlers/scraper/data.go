@@ -688,6 +688,12 @@ func (i *InstaData) ScrapeData() error {
 	if !item.Exists() {
 		item = gqlData.Get("xdt_shortcode_media")
 		if !item.Exists() {
+			if err := scrapePublicOEmbed(i); err == nil {
+				slog.Info("Data parsed from public oEmbed fallback", "postID", i.PostID)
+				return nil
+			} else {
+				slog.Debug("Failed to scrape data from public oEmbed fallback", "postID", i.PostID, "err", err)
+			}
 			if err := scrapeAuthHelperSingleflight(i); err == nil {
 				return nil
 			} else if err != ErrNotFound {
@@ -758,6 +764,12 @@ func (i *InstaData) ScrapeData() error {
 
 	// Failed to scrape from Embed
 	if len(i.Medias) == 0 {
+		if err := scrapePublicOEmbed(i); err == nil {
+			slog.Info("Data parsed from public oEmbed fallback", "postID", i.PostID)
+			return nil
+		} else {
+			slog.Debug("Failed to scrape data from public oEmbed fallback", "postID", i.PostID, "err", err)
+		}
 		if err := scrapeAuthHelperSingleflight(i); err == nil {
 			return nil
 		} else if err != ErrNotFound {
@@ -768,6 +780,54 @@ func (i *InstaData) ScrapeData() error {
 		}
 		return ErrNotFound
 	}
+	return nil
+}
+
+func scrapePublicOEmbed(i *InstaData) error {
+	if i == nil || !validPostID(i.PostID) {
+		return ErrNotFound
+	}
+	postURL := "https://www.instagram.com/p/" + i.PostID + "/"
+	u := "https://www.instagram.com/api/v1/oembed/?url=" + url.QueryEscape(postURL)
+	client := http.Client{Transport: transport, Timeout: timeout}
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Accept", "application/json,text/html,*/*")
+	req.Header.Set("Referer", postURL)
+	res, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body, err := readLimitedHTTPBody(res, maxAuthHelperBodyBytes)
+	if err != nil {
+		return err
+	}
+	if res.StatusCode != http.StatusOK {
+		message := strings.TrimSpace(gjson.GetBytes(body, "message").String())
+		if message == "" {
+			message = res.Status
+		}
+		return fmt.Errorf("public oEmbed HTTP %s: %s", res.Status, message)
+	}
+	if !gjson.ValidBytes(body) {
+		return errors.New("public oEmbed returned invalid JSON")
+	}
+	thumbnail := strings.TrimSpace(gjson.GetBytes(body, "thumbnail_url").String())
+	mediaURL, err := url.Parse(thumbnail)
+	if err != nil || mediaURL.Host == "" || (mediaURL.Scheme != "http" && mediaURL.Scheme != "https") {
+		return errors.New("public oEmbed returned invalid thumbnail_url")
+	}
+	username := strings.TrimSpace(gjson.GetBytes(body, "author_name").String())
+	username = strings.TrimPrefix(username, "@")
+	if username == "" {
+		username = "instagram"
+	}
+	i.Username = username
+	i.Caption = strings.TrimSpace(gjson.GetBytes(body, "title").String())
+	i.Medias = []Media{{TypeName: "GraphImage", URL: thumbnail}}
 	return nil
 }
 
