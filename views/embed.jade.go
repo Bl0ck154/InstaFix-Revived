@@ -22,7 +22,7 @@ const (
 	embed__14 = `"/><meta name="twitter:player:height" content="`
 	embed__15 = `"/><meta name="twitter:player:stream" content="`
 	embed__16 = `"/><meta name="twitter:player:stream:content_type" content="video/mp4"/>`
-	embed__17 = `<meta property="og:site_name" content="Instagram7"/>`
+	embed__17 = `<meta property="og:site_name" content="Instagram preview"/>`
 	embed__18 = `<meta property="og:image" content="`
 	embed__20 = `<meta property="og:video" content="`
 	embed__21 = `"/><meta property="og:video:secure_url" content="`

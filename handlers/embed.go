@@ -107,10 +107,10 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If User-Agent is not bot, redirect to Instagram
-	viewsData.Title = "Instagram7 fixed preview"
+	viewsData.Title = "Instagram fixed preview"
 	viewsData.URL = "https://instagram.com" + strings.Replace(r.URL.RequestURI(), "/"+mediaNumParams, "", 1)
 	viewsData.CanonicalURL = viewsData.URL
-	viewsData.Site = "Instagram7"
+	viewsData.Site = "Instagram preview"
 	if !utils.IsBot(r.Header.Get("User-Agent")) {
 		http.Redirect(w, r, viewsData.URL, http.StatusFound)
 		return
@@ -209,7 +209,7 @@ func renderFallbackEmbed(w http.ResponseWriter, r *http.Request, viewsData *mode
 		scheme = "https"
 	}
 	publicBaseURL := scheme + "://" + r.Host
-	viewsData.Title = "Instagram7 fixed preview"
+	viewsData.Title = "Instagram fixed preview"
 	viewsData.Creator = "@instagram"
 	viewsData.Card = "summary_large_image"
 	viewsData.OGType = "article"
