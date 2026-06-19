@@ -123,7 +123,15 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 	} else {
 		item, err = scraper.GetDataQuiet(postID)
 	}
-	if err != nil || len(item.Medias) == 0 {
+	if err != nil || item == nil || len(item.Medias) == 0 || len(item.Username) == 0 {
+		if authItem, authErr := scraper.GetDataEmbedAuthFallback(postID); authErr == nil && authItem != nil && len(authItem.Medias) > 0 {
+			item = authItem
+			err = nil
+		} else if authErr != nil {
+			slog.Info("Embed auth fallback unavailable", "postID", postID, "err", authErr)
+		}
+	}
+	if err != nil || item == nil || len(item.Medias) == 0 {
 		renderFallbackEmbed(w, r, viewsData, postID, err)
 		return
 	}

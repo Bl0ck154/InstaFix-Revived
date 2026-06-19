@@ -40,6 +40,11 @@ var (
 	transportNoProxy   *http.Transport
 	sflightScraper     singleflight.Group
 	sflightAuthHelper  singleflight.Group
+	authHelperSlots    = make(chan struct{}, max(1, envInt("INSTAFIX_AUTH_HELPER_MAX_CONCURRENT", 1)))
+	embedAuthFallback  = envBool("INSTAFIX_EMBED_AUTH_FALLBACK", false)
+	embedAuthNegTTL    = envDurationSeconds("INSTAFIX_EMBED_AUTH_NEGATIVE_TTL_SECONDS", time.Hour)
+	embedAuthNegMu     sync.Mutex
+	embedAuthNeg       = make(map[string]embedAuthNegative)
 	authHealthMu       sync.Mutex
 	authHealthUntil    time.Time
 	authHealthStatus   authHealth
@@ -52,6 +57,11 @@ type authHealth struct {
 	checked   bool
 	available int
 	total     int
+}
+
+type embedAuthNegative struct {
+	until  time.Time
+	reason string
 }
 
 const (
@@ -242,6 +252,35 @@ func RefreshDataFromAuthHelper(postID string) (*InstaData, error) {
 	return item, nil
 }
 
+func GetDataEmbedAuthFallback(postID string) (*InstaData, error) {
+	if !embedAuthFallback {
+		return nil, ErrNotFound
+	}
+	if !validPostID(postID) {
+		return nil, errors.New("postID is not a valid Instagram post ID")
+	}
+	if reason, ok := embedAuthNegativeHit(postID); ok {
+		return nil, fmt.Errorf("embed auth fallback negative cache: %s", reason)
+	}
+	item := &InstaData{PostID: postID}
+	if err := scrapeAuthHelperSingleflight(item); err != nil {
+		saveEmbedAuthNegative(postID, err)
+		return nil, err
+	}
+	if len(item.Medias) == 0 {
+		err := ErrNotFound
+		saveEmbedAuthNegative(postID, err)
+		return nil, err
+	}
+	if err := normalizeMediaURLs(item); err != nil {
+		return nil, err
+	}
+	if err := saveDataToCache(item); err != nil {
+		slog.Warn("Failed to save embed auth fallback to cache", "postID", item.PostID, "err", err)
+	}
+	return item, nil
+}
+
 func normalizeMediaURLs(item *InstaData) error {
 	if len(item.Username) > maxUsernameLength {
 		item.Username = item.Username[:maxUsernameLength]
@@ -413,6 +452,10 @@ func deleteTTLForPost(ttlBucket *bolt.Bucket, postID string) {
 func scrapeAuthHelperSingleflight(i *InstaData) error {
 	ret, err, _ := sflightAuthHelper.Do(i.PostID, func() (interface{}, error) {
 		item := &InstaData{PostID: i.PostID}
+		if err := acquireAuthHelperSlot(); err != nil {
+			return nil, err
+		}
+		defer releaseAuthHelperSlot()
 		if err := scrapeAuthHelper(item); err != nil {
 			return nil, err
 		}
@@ -427,6 +470,81 @@ func scrapeAuthHelperSingleflight(i *InstaData) error {
 	}
 	*i = *item
 	return nil
+}
+
+func acquireAuthHelperSlot() error {
+	select {
+	case authHelperSlots <- struct{}{}:
+		return nil
+	case <-time.After(envDurationSeconds("INSTAFIX_AUTH_HELPER_ACQUIRE_TIMEOUT_SECONDS", 2*time.Second)):
+		return fmt.Errorf("auth helper busy")
+	}
+}
+
+func releaseAuthHelperSlot() {
+	select {
+	case <-authHelperSlots:
+	default:
+	}
+}
+
+func embedAuthNegativeHit(postID string) (string, bool) {
+	if embedAuthNegTTL <= 0 || postID == "" {
+		return "", false
+	}
+	now := time.Now()
+	embedAuthNegMu.Lock()
+	entry, ok := embedAuthNeg[postID]
+	if ok && now.After(entry.until) {
+		delete(embedAuthNeg, postID)
+		ok = false
+	}
+	embedAuthNegMu.Unlock()
+	if !ok {
+		return "", false
+	}
+	return entry.reason, true
+}
+
+func saveEmbedAuthNegative(postID string, err error) {
+	if embedAuthNegTTL <= 0 || postID == "" || err == nil {
+		return
+	}
+	ttl := embedAuthNegTTL
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "busy") || strings.Contains(msg, "timeout") || strings.Contains(msg, "deadline") {
+		ttl = minDuration(ttl, time.Minute)
+	} else if errors.Is(err, ErrAuthUnavailable) || strings.Contains(msg, "auth_circuit_open") || strings.Contains(msg, "cooling down") {
+		ttl = minDuration(ttl, 5*time.Minute)
+	}
+	embedAuthNegMu.Lock()
+	if len(embedAuthNeg) > 4096 {
+		for k, v := range embedAuthNeg {
+			if time.Now().After(v.until) {
+				delete(embedAuthNeg, k)
+			}
+		}
+	}
+	embedAuthNeg[postID] = embedAuthNegative{until: time.Now().Add(ttl), reason: compactErrorReason(err)}
+	embedAuthNegMu.Unlock()
+}
+
+func compactErrorReason(err error) string {
+	if err == nil {
+		return "unknown"
+	}
+	msg := err.Error()
+	if len(msg) > 160 {
+		msg = msg[:160]
+	}
+	return msg
+}
+
+func minDuration(a, b time.Duration) time.Duration {
+	if a <= 0 || a > b {
+		return b
+	}
+	return a
 }
 
 func negativeCacheHit(postID string) (string, bool) {
@@ -535,6 +653,30 @@ func envDurationSeconds(name string, fallback time.Duration) time.Duration {
 		return fallback
 	}
 	return time.Duration(seconds) * time.Second
+}
+
+func envBool(name string, fallback bool) bool {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envInt(name string, fallback int) int {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 func validPostID(postID string) bool {
