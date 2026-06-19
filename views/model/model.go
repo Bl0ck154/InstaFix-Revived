@@ -3,7 +3,7 @@ package model
 type ViewsData struct {
 	Card         string
 	ExtraCard    string
-	Title        string `default:"InstaFix"`
+	Title        string `default:"Instagram7 fixed preview"`
 	ImageURL     string `default:""`
 	VideoURL     string `default:""`
 	URL          string
