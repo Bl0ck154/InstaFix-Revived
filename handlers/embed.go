@@ -120,12 +120,12 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 	preferVideo := strings.Contains(r.URL.Path, "/reel/") || strings.Contains(r.URL.Path, "/reels/") || strings.Contains(r.URL.Path, "/tv/")
 	var item *scraper.InstaData
 	if preferVideo {
-		item, err = scraper.GetDataPreferVideo(postID)
+		item, err = scraper.GetDataPreferVideoQuiet(postID)
 	} else {
-		item, err = scraper.GetData(postID)
+		item, err = scraper.GetDataQuiet(postID)
 	}
 	if err != nil || len(item.Medias) == 0 {
-		http.Redirect(w, r, viewsData.URL, http.StatusFound)
+		renderFallbackEmbed(w, r, viewsData, postID, err)
 		return
 	}
 
@@ -134,8 +134,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		views.Embed(viewsData, w)
 		return
 	} else if len(item.Username) == 0 {
-		viewsData.Description = "Post not found"
-		views.Embed(viewsData, w)
+		renderFallbackEmbed(w, r, viewsData, postID, scraper.ErrNotFound)
 		return
 	}
 
@@ -202,5 +201,23 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	views.Embed(viewsData, w)
+}
+
+func renderFallbackEmbed(w http.ResponseWriter, r *http.Request, viewsData *model.ViewsData, postID string, scrapeErr error) {
+	scheme := "http"
+	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+		scheme = "https"
+	}
+	publicBaseURL := scheme + "://" + r.Host
+	viewsData.Title = "Instagram preview"
+	viewsData.Creator = "@instagram"
+	viewsData.Card = "summary_large_image"
+	viewsData.OGType = "article"
+	viewsData.Description = "Instagram did not provide public media for this post. Open it on Instagram to view the original."
+	viewsData.ImageURL = publicBaseURL + "/fallback/" + postID + ".png"
+	if scrapeErr != nil {
+		slog.Info("Serving generic fallback preview", "postID", postID, "err", scrapeErr)
+	}
 	views.Embed(viewsData, w)
 }

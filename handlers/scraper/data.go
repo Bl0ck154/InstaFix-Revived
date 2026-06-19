@@ -14,6 +14,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/PuerkitoBio/goquery"
@@ -29,19 +30,29 @@ import (
 )
 
 var (
-	RemoteScraperAddr string
-	AuthHelperURL     string
-	ErrNotFound       = errors.New("post not found")
-	ErrRestricted     = errors.New("Instagram content restricted")
-	timeout           = 5 * time.Second
-	transport         http.RoundTripper
-	transportNoProxy  *http.Transport
-	sflightScraper    singleflight.Group
-	sflightAuthHelper singleflight.Group
-	cacheFreshTTL     = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
-	cacheStaleTTL     = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
-	negativeCacheTTL  = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
+	RemoteScraperAddr  string
+	AuthHelperURL      string
+	ErrNotFound        = errors.New("post not found")
+	ErrRestricted      = errors.New("Instagram content restricted")
+	ErrAuthUnavailable = errors.New("cookie pool unavailable")
+	timeout            = 5 * time.Second
+	transport          http.RoundTripper
+	transportNoProxy   *http.Transport
+	sflightScraper     singleflight.Group
+	sflightAuthHelper  singleflight.Group
+	authHealthMu       sync.Mutex
+	authHealthUntil    time.Time
+	authHealthStatus   authHealth
+	cacheFreshTTL      = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
+	cacheStaleTTL      = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
+	negativeCacheTTL   = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
 )
+
+type authHealth struct {
+	checked   bool
+	available int
+	total     int
+}
 
 const (
 	maxRemoteScraperBodyBytes    int64 = 1 << 20
@@ -98,6 +109,14 @@ func init() {
 }
 
 func GetData(postID string) (*InstaData, error) {
+	return getData(postID, true)
+}
+
+func GetDataQuiet(postID string) (*InstaData, error) {
+	return getData(postID, false)
+}
+
+func getData(postID string, recordScrape bool) (*InstaData, error) {
 	if !validPostID(postID) {
 		return nil, errors.New("postID is not a valid Instagram post ID")
 	}
@@ -122,12 +141,24 @@ func GetData(postID string) (*InstaData, error) {
 		return nil, errorForNegativeReason(reason)
 	}
 
-	ret, err, _ := sflightScraper.Do(postID, func() (interface{}, error) {
+	sflightKey := postID
+	if !recordScrape {
+		sflightKey += ":quiet"
+	}
+	ret, err, _ := sflightScraper.Do(sflightKey, func() (interface{}, error) {
 		item := new(InstaData)
 		item.PostID = postID
-		if err := item.ScrapeData(); err != nil {
-			observability.Default.RecordScrape(false, item.PostID, err)
-			return nil, err
+		var scrapeErr error
+		if recordScrape {
+			scrapeErr = item.ScrapeData()
+		} else {
+			scrapeErr = item.ScrapeDataNoAuth()
+		}
+		if scrapeErr != nil {
+			if recordScrape {
+				observability.Default.RecordScrape(false, item.PostID, scrapeErr)
+			}
+			return nil, scrapeErr
 		}
 
 		if err := normalizeMediaURLs(item); err != nil {
@@ -138,7 +169,9 @@ func GetData(postID string) (*InstaData, error) {
 		if err := saveDataToCache(item); err != nil {
 			return false, err
 		}
-		observability.Default.RecordScrape(true, item.PostID, nil)
+		if recordScrape {
+			observability.Default.RecordScrape(true, item.PostID, nil)
+		}
 		return item, nil
 	})
 	if err != nil {
@@ -154,8 +187,22 @@ func GetData(postID string) (*InstaData, error) {
 }
 
 func GetDataPreferVideo(postID string) (*InstaData, error) {
-	item, err := GetData(postID)
+	return getDataPreferVideo(postID, true)
+}
+
+func GetDataPreferVideoQuiet(postID string) (*InstaData, error) {
+	return getDataPreferVideo(postID, false)
+}
+
+func getDataPreferVideo(postID string, recordScrape bool) (*InstaData, error) {
+	item, err := getData(postID, recordScrape)
 	if err == nil && item.HasVideo() {
+		return item, nil
+	}
+	if !recordScrape {
+		if err != nil {
+			return nil, err
+		}
 		return item, nil
 	}
 	refreshed, refreshErr := RefreshDataFromAuthHelper(postID)
@@ -533,6 +580,14 @@ func decodeRemoteScraperBody(body []byte) ([]byte, error) {
 }
 
 func (i *InstaData) ScrapeData() error {
+	return i.scrapeData(true)
+}
+
+func (i *InstaData) ScrapeDataNoAuth() error {
+	return i.scrapeData(false)
+}
+
+func (i *InstaData) scrapeData(allowAuth bool) error {
 	// Scrape from remote scraper if available
 	if len(RemoteScraperAddr) > 0 {
 		remoteClient := http.Client{Transport: transportNoProxy, Timeout: timeout}
@@ -694,10 +749,12 @@ func (i *InstaData) ScrapeData() error {
 			} else {
 				slog.Debug("Failed to scrape data from public oEmbed fallback", "postID", i.PostID, "err", err)
 			}
-			if err := scrapeAuthHelperSingleflight(i); err == nil {
-				return nil
-			} else if err != ErrNotFound {
-				slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
+			if allowAuth {
+				if err := scrapeAuthHelperSingleflight(i); err == nil {
+					return nil
+				} else if err != ErrNotFound {
+					slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
+				}
 			}
 			if status == "fail" {
 				if err := scrapeRestriction(i.PostID); err != nil {
@@ -770,10 +827,12 @@ func (i *InstaData) ScrapeData() error {
 		} else {
 			slog.Debug("Failed to scrape data from public oEmbed fallback", "postID", i.PostID, "err", err)
 		}
-		if err := scrapeAuthHelperSingleflight(i); err == nil {
-			return nil
-		} else if err != ErrNotFound {
-			slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
+		if allowAuth {
+			if err := scrapeAuthHelperSingleflight(i); err == nil {
+				return nil
+			} else if err != ErrNotFound {
+				slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
+			}
 		}
 		if err := scrapeRestriction(i.PostID); err != nil {
 			return err
@@ -949,6 +1008,9 @@ func scrapeAuthHelper(i *InstaData) error {
 	if AuthHelperURL == "" {
 		return ErrNotFound
 	}
+	if health := authHelperHealth(); health.checked && health.total > 0 && health.available <= 0 {
+		return fmt.Errorf("%w: exhausted (%d/%d available)", ErrAuthUnavailable, health.available, health.total)
+	}
 	base, err := url.Parse(AuthHelperURL)
 	if err != nil || (base.Scheme != "http" && base.Scheme != "https") || base.Host == "" {
 		return fmt.Errorf("invalid auth helper URL")
@@ -1013,6 +1075,42 @@ func scrapeAuthHelper(i *InstaData) error {
 	observability.Default.RecordAuthHelperResult(true, i.PostID, "", nil)
 	slog.Info("Data parsed from auth helper", "postID", i.PostID)
 	return nil
+}
+
+func authHelperHealth() authHealth {
+	authHealthMu.Lock()
+	now := time.Now()
+	if now.Before(authHealthUntil) {
+		health := authHealthStatus
+		authHealthMu.Unlock()
+		return health
+	}
+	authHealthUntil = now.Add(30 * time.Second)
+	authHealthMu.Unlock()
+
+	health := authHealth{}
+	base, err := url.Parse(AuthHelperURL)
+	if err != nil || base.Host == "" {
+		return health
+	}
+	u := base.ResolveReference(&url.URL{Path: strings.TrimRight(base.Path, "/") + "/healthz"})
+	client := http.Client{Timeout: 2 * time.Second}
+	res, err := client.Get(u.String())
+	if err != nil || res == nil {
+		return health
+	}
+	defer res.Body.Close()
+	body, err := readLimitedHTTPBody(res, maxAuthHelperBodyBytes)
+	if err != nil || !gjson.ValidBytes(body) {
+		return health
+	}
+	health.checked = true
+	health.total = int(gjson.GetBytes(body, "cookie_pool.total").Int())
+	health.available = int(gjson.GetBytes(body, "cookie_pool.available").Int())
+	authHealthMu.Lock()
+	authHealthStatus = health
+	authHealthMu.Unlock()
+	return health
 }
 
 func scrapeFromGQL(postID string) ([]byte, error) {

@@ -26,6 +26,7 @@ AUTH_CACHE_TTL_SECONDS = int(os.environ.get("AUTH_HELPER_AUTH_CACHE_TTL_SECONDS"
 AUTH_NEGATIVE_CACHE_TTL_SECONDS = int(os.environ.get("AUTH_HELPER_AUTH_NEGATIVE_CACHE_TTL_SECONDS", "3600"))
 VERIFY_VIDEO_URL = os.environ.get("AUTH_HELPER_VERIFY_VIDEO_URL", "").strip().lower() in ("1", "true", "yes", "on")
 FETCH_VIDEO_INFO = os.environ.get("AUTH_HELPER_FETCH_VIDEO_INFO", "").strip().lower() in ("1", "true", "yes", "on")
+FETCH_MEDIA_INFO_FALLBACK = os.environ.get("AUTH_HELPER_FETCH_MEDIA_INFO_FALLBACK", "").strip().lower() in ("1", "true", "yes", "on")
 ENABLE_VIDEO_PROXY = os.environ.get("AUTH_HELPER_ENABLE_VIDEO_PROXY", "").strip().lower() in ("1", "true", "yes", "on")
 VIDEO_PROXY_SEND_COOKIE = os.environ.get("AUTH_HELPER_VIDEO_PROXY_SEND_COOKIE", "").strip().lower() in ("1", "true", "yes", "on")
 VIDEO_PROXY_REFRESH_MODE = os.environ.get("AUTH_HELPER_VIDEO_PROXY_REFRESH_MODE", "on_failure").strip().lower()
@@ -501,6 +502,12 @@ def oembed(post_id, forced_account=None, bypass_cache=False):
         message = str((data or {}).get("message") or "") if isinstance(data, dict) else ""
         if not message and b"5xx Server Error" in body:
             message = "instagram edge 5xx"
+        code = classify_instagram_error(r.status_code, body, "auth_oembed_unavailable")
+        if code in AUTH_CIRCUIT_CODES:
+            mark_account_failure(account.account_id, code, post_id)
+        if not FETCH_MEDIA_INFO_FALLBACK:
+            cache_negative(post_id, code, f"Instagram oEmbed HTTP {r.status_code}: {message}", account_id)
+            raise HelperError(code, f"Instagram oEmbed HTTP {r.status_code}: {message or r.status_code}", r.status_code)
         log("warn", "auth oembed unavailable; trying media info fallback", post_id=post_id, status=r.status_code, error=message[:120])
         try:
             payload = media_info_payload(post_id, str(shortcode_to_media_id(post_id)), account, post_url)
@@ -1183,7 +1190,7 @@ def main():
         log("error", "auth helper cookie unavailable", error=str(exc))
         sys.exit(1)
     server = ThreadingHTTPServer((host, int(port_text)), Handler)
-    log("info", "auth helper listening", listen=LISTEN, impersonate=IMPERSONATE, cookie_file=bool(COOKIE_FILE), cookie_dir=bool(COOKIE_DIR), cookie_pool=pool, max_per_minute=MAX_PER_MINUTE, auth_max_per_minute=AUTH_MAX_PER_MINUTE, auth_cooldown_seconds=AUTH_COOLDOWN_SECONDS, auth_cache_ttl_seconds=AUTH_CACHE_TTL_SECONDS, auth_negative_cache_ttl_seconds=AUTH_NEGATIVE_CACHE_TTL_SECONDS, fetch_video_info=FETCH_VIDEO_INFO, video_proxy=ENABLE_VIDEO_PROXY, video_proxy_send_cookie=VIDEO_PROXY_SEND_COOKIE, video_proxy_refresh_mode=VIDEO_PROXY_REFRESH_MODE, video_proxy_max_concurrent=VIDEO_PROXY_MAX_CONCURRENT, video_proxy_max_bytes=VIDEO_PROXY_MAX_BYTES, video_proxy_timeout=VIDEO_PROXY_TIMEOUT, video_proxy_max_resume_attempts=VIDEO_PROXY_MAX_RESUME_ATTEMPTS, video_proxy_upstream_chunk_bytes=VIDEO_PROXY_UPSTREAM_CHUNK_BYTES, video_proxy_upstream_chunk_timeout=VIDEO_PROXY_UPSTREAM_CHUNK_TIMEOUT)
+    log("info", "auth helper listening", listen=LISTEN, impersonate=IMPERSONATE, cookie_file=bool(COOKIE_FILE), cookie_dir=bool(COOKIE_DIR), cookie_pool=pool, max_per_minute=MAX_PER_MINUTE, auth_max_per_minute=AUTH_MAX_PER_MINUTE, auth_cooldown_seconds=AUTH_COOLDOWN_SECONDS, auth_cache_ttl_seconds=AUTH_CACHE_TTL_SECONDS, auth_negative_cache_ttl_seconds=AUTH_NEGATIVE_CACHE_TTL_SECONDS, fetch_video_info=FETCH_VIDEO_INFO, fetch_media_info_fallback=FETCH_MEDIA_INFO_FALLBACK, video_proxy=ENABLE_VIDEO_PROXY, video_proxy_send_cookie=VIDEO_PROXY_SEND_COOKIE, video_proxy_refresh_mode=VIDEO_PROXY_REFRESH_MODE, video_proxy_max_concurrent=VIDEO_PROXY_MAX_CONCURRENT, video_proxy_max_bytes=VIDEO_PROXY_MAX_BYTES, video_proxy_timeout=VIDEO_PROXY_TIMEOUT, video_proxy_max_resume_attempts=VIDEO_PROXY_MAX_RESUME_ATTEMPTS, video_proxy_upstream_chunk_bytes=VIDEO_PROXY_UPSTREAM_CHUNK_BYTES, video_proxy_upstream_chunk_timeout=VIDEO_PROXY_UPSTREAM_CHUNK_TIMEOUT)
     server.serve_forever()
 
 

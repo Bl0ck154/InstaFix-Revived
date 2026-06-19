@@ -125,6 +125,7 @@ func main() {
 	r.Get("/videos/{postID}/{mediaNum}", handlers.Videos)
 	r.Head("/videos/{postID}/{mediaNum}", handlers.Videos)
 	r.Get("/grid/{postID}", handlers.Grid)
+	r.Get("/fallback/{postID}.png", handlers.FallbackPreview)
 	r.Get("/oembed", handlers.OEmbed)
 	r.Get("/api/{postID}", func(w http.ResponseWriter, r *http.Request) {
 		postID := chi.URLParam(r, "postID")

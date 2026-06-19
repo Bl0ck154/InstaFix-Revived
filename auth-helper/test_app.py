@@ -165,6 +165,21 @@ class VideoProxyHelpersTest(unittest.TestCase):
             app.account_cooldowns.clear()
             app.account_cooldowns.update(old_cooldowns)
 
+    def test_oembed_does_not_use_media_info_fallback_by_default(self):
+        account = app.CookieAccount("a", "sessionid=a; ds_user_id=a", "/tmp/a")
+        body = b'{"message":"login_required"}'
+        response = mock.Mock(status_code=401)
+        response.iter_content.return_value = [body]
+        old_fallback = app.FETCH_MEDIA_INFO_FALLBACK
+        try:
+            app.FETCH_MEDIA_INFO_FALLBACK = False
+            with mock.patch("app.choose_cookie_account", return_value=account), mock.patch("app.auth_get", return_value=response), mock.patch("app.media_info_payload") as media_info:
+                with self.assertRaises(app.HelperError):
+                    app.oembed("POSTID", bypass_cache=True)
+            media_info.assert_not_called()
+        finally:
+            app.FETCH_MEDIA_INFO_FALLBACK = old_fallback
+
 
 if __name__ == "__main__":
     unittest.main()
