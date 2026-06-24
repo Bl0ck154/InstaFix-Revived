@@ -12,9 +12,12 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 )
+
+var MaxInlineVideoBytes int64
 
 func mediaidToCode(mediaID int) string {
 	alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
@@ -172,18 +175,39 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		sb.WriteString(publicBaseURL + "/grid/")
 		sb.WriteString(postID)
 		viewsData.ImageURL = sb.String()
+		viewsData.ImageURLs = carouselImageURLs(publicBaseURL, postID, item.Medias, 3)
+		if isDirect {
+			sb.Reset()
+			sb.WriteString(publicBaseURL + "/offload/")
+			sb.WriteString(postID)
+			sb.WriteString("/1")
+		}
 	case isImage:
 		viewsData.Card = "summary_large_image"
 		viewsData.OGType = "article"
-		sb.WriteString(publicBaseURL + "/images/")
+		sb.WriteString(publicBaseURL + "/offload/")
 		sb.WriteString(postID)
 		sb.WriteString("/")
 		sb.WriteString(strconv.Itoa(max(1, mediaNum)))
 		viewsData.ImageURL = sb.String()
 	default:
-		viewsData.Card = "player"
-		viewsData.ExtraCard = "summary_large_image"
-		viewsData.OGType = "video.other"
+		videoOversized := isInlineVideoOversized(media.URL)
+		videoRoute := publicBaseURL + "/videos/" + postID + "/" + strconv.Itoa(max(1, mediaNum))
+		directRoute := videoRoute
+		if videoOversized {
+			viewsData.Card = "summary_large_image"
+			viewsData.OGType = "article"
+			directRoute = publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(max(1, mediaNum))
+			if viewsData.Description == "" {
+				viewsData.Description = "Video is too large for inline preview. Open on Instagram to view it."
+			} else {
+				viewsData.Description = viewsData.Description + "\n\nVideo is too large for inline preview."
+			}
+		} else {
+			viewsData.Card = "player"
+			viewsData.ExtraCard = "summary_large_image"
+			viewsData.OGType = "video.other"
+		}
 		viewsData.Width = media.Width
 		viewsData.Height = media.Height
 		if viewsData.Width <= 0 {
@@ -193,13 +217,17 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 			viewsData.Height = 400
 		}
 		if media.ThumbnailURL != "" {
-			viewsData.ImageURL = publicBaseURL + "/images/" + postID + "/" + strconv.Itoa(max(1, mediaNum))
+			viewsData.ImageURL = publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(max(1, mediaNum)) + "?thumbnail=1"
 		}
-		sb.WriteString(publicBaseURL + "/videos/")
-		sb.WriteString(postID)
-		sb.WriteString("/")
-		sb.WriteString(strconv.Itoa(max(1, mediaNum)))
-		viewsData.VideoURL = sb.String()
+		if !videoOversized {
+			sb.WriteString(videoRoute)
+			viewsData.VideoURL = sb.String()
+		} else {
+			sb.WriteString(directRoute)
+			if viewsData.ImageURL == "" {
+				viewsData.ImageURL = publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(max(1, mediaNum)) + "?thumbnail=1"
+			}
+		}
 
 		viewsData.OEmbedURL = scheme + "://" + r.Host + "/oembed?text=" + url.QueryEscape(viewsData.Description) + "&url=" + viewsData.URL
 	}
@@ -209,6 +237,66 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	views.Embed(viewsData, w)
+}
+
+func ConfigureMaxInlineVideoBytes(maxBytes int64) {
+	if maxBytes >= 0 {
+		MaxInlineVideoBytes = maxBytes
+	}
+}
+
+func isInlineVideoOversized(videoURL string) bool {
+	if MaxInlineVideoBytes <= 0 || strings.TrimSpace(videoURL) == "" {
+		return false
+	}
+	req, err := http.NewRequest(http.MethodHead, videoURL, http.NoBody)
+	if err != nil {
+		return false
+	}
+	req.Header.Set("User-Agent", "Instagram 273.0.0.16.70 (iPhone15,2; iOS 17_5_1; en_US; en-US; scale=3.00; 1290x2796; 470085518)")
+	client := http.Client{Timeout: 4 * time.Second}
+	res, err := client.Do(req)
+	if err != nil || res == nil {
+		return false
+	}
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 || res.ContentLength <= 0 {
+		return false
+	}
+	if res.ContentLength > MaxInlineVideoBytes {
+		slog.Info("inline video disabled: oversized", "contentLength", res.ContentLength, "maxBytes", MaxInlineVideoBytes, "host", safeURLHost(videoURL))
+		return true
+	}
+	return false
+}
+
+func safeURLHost(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return "invalid"
+	}
+	return u.Host
+}
+
+func carouselImageURLs(publicBaseURL, postID string, medias []scraper.Media, limit int) []string {
+	if limit <= 0 {
+		return nil
+	}
+	urls := make([]string, 0, limit)
+	for idx, media := range medias {
+		if len(urls) >= limit {
+			break
+		}
+		if !media.IsImage() && media.ThumbnailURL == "" {
+			continue
+		}
+		mediaURL := publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(idx+1)
+		if !media.IsImage() {
+			mediaURL += "?thumbnail=1"
+		}
+		urls = append(urls, mediaURL)
+	}
+	return urls
 }
 
 func renderFallbackEmbed(w http.ResponseWriter, r *http.Request, viewsData *model.ViewsData, postID string, scrapeErr error) {

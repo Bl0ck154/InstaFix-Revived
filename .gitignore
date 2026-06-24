@@ -18,6 +18,7 @@
 !handlers/scraper/dictionary.bin
 
 !README.md
+!docs/*.md
 !TESTING.md
 !CONTRIBUTING.md
 !SECURITY.md

@@ -74,6 +74,11 @@ func main() {
 	if handlers.PreviewVideoProxyEnabled {
 		slog.Info("preview video proxy configured", "user_agents", strings.Join(handlers.PreviewVideoProxyUserAgents, ","), "timeout", handlers.PreviewVideoProxyTimeout.String())
 	}
+	if maxBytes, err := strconv.ParseInt(strings.TrimSpace(os.Getenv("MAX_INLINE_VIDEO_BYTES")), 10, 64); err == nil {
+		handlers.ConfigureMaxInlineVideoBytes(maxBytes)
+	} else {
+		handlers.ConfigureMaxInlineVideoBytes(int64(envInt("MAX_INLINE_VIDEO_MB", 200)) << 20)
+	}
 
 	// Initialize LRU
 	gridCacheMax, err := strconv.Atoi(*gridCacheMaxFlag)
@@ -124,6 +129,8 @@ func main() {
 	r.Head("/images/{postID}/{mediaNum}", handlers.Images)
 	r.Get("/videos/{postID}/{mediaNum}", handlers.Videos)
 	r.Head("/videos/{postID}/{mediaNum}", handlers.Videos)
+	r.Get("/offload/{postID}/{mediaNum}", handlers.Offload)
+	r.Head("/offload/{postID}/{mediaNum}", handlers.Offload)
 	r.Get("/grid/{postID}", handlers.Grid)
 	r.Get("/fallback/{postID}.png", handlers.FallbackPreview)
 	r.Get("/oembed", handlers.OEmbed)

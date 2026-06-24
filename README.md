@@ -33,6 +33,8 @@ Add `7` to the Instagram URL and your chat app gets a cleaner embed:
 - Supports image and video preview routes.
 - Keeps normal browser media traffic lightweight with direct redirects.
 - Includes an optional local auth-helper for difficult/restricted cases.
+- Includes an optional public GraphQL proxy pool for anonymous fetches, disabled by default.
+- Emits additional image tags for carousel previews where clients support them.
 - Includes an optional selective video proxy for preview bots, disabled by default.
 - Avoids exposing direct Instagram CDN URLs in the minimal homepage JSON preview API.
 

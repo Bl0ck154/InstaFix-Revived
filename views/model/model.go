@@ -5,6 +5,7 @@ type ViewsData struct {
 	ExtraCard    string
 	Title        string `default:"Instagram fixed preview"`
 	ImageURL     string `default:""`
+	ImageURLs    []string
 	VideoURL     string `default:""`
 	URL          string
 	CanonicalURL string

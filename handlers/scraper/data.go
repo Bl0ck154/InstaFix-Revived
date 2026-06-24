@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"bytes"
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -51,6 +52,11 @@ var (
 	cacheFreshTTL      = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
 	cacheStaleTTL      = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
 	negativeCacheTTL   = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
+	publicProxyURLs      = splitCSVEnv("INSTAFIX_PUBLIC_PROXY_URLS")
+	publicProxyMu        sync.Mutex
+	publicProxyClients   = make(map[string]*http.Client)
+	publicProxyCooldowns = make(map[string]time.Time)
+	publicProxyCursor    int
 )
 
 type authHealth struct {
@@ -655,6 +661,18 @@ func envDurationSeconds(name string, fallback time.Duration) time.Duration {
 	return time.Duration(seconds) * time.Second
 }
 
+func envDurationMilliseconds(name string, fallback time.Duration) time.Duration {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	milliseconds, err := strconv.Atoi(value)
+	if err != nil || milliseconds < 0 {
+		return fallback
+	}
+	return time.Duration(milliseconds) * time.Millisecond
+}
+
 func envBool(name string, fallback bool) bool {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
@@ -677,6 +695,22 @@ func envInt(name string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func splitCSVEnv(name string) []string {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			items = append(items, part)
+		}
+	}
+	return items
 }
 
 func validPostID(postID string) bool {
@@ -881,84 +915,41 @@ func (i *InstaData) scrapeData(allowAuth bool) error {
 	}
 
 	status := gqlData.Get("status").String()
-	item := gqlData.Get("shortcode_media")
-	if !item.Exists() {
-		item = gqlData.Get("xdt_shortcode_media")
-		if !item.Exists() {
-			if err := scrapePublicOEmbed(i); err == nil {
-				slog.Info("Data parsed from public oEmbed fallback", "postID", i.PostID)
+	if err := parseGraphQLMediaData(i, gqlData); err != nil {
+		if err := scrapePublicOEmbed(i); err == nil {
+			slog.Info("Data parsed from public oEmbed fallback", "postID", i.PostID)
+			return nil
+		} else {
+			slog.Debug("Failed to scrape data from public oEmbed fallback", "postID", i.PostID, "err", err)
+		}
+		if allowAuth {
+			if err := scrapeAuthHelperSingleflight(i); err == nil {
 				return nil
-			} else {
-				slog.Debug("Failed to scrape data from public oEmbed fallback", "postID", i.PostID, "err", err)
+			} else if err != ErrNotFound {
+				slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
 			}
-			if allowAuth {
-				if err := scrapeAuthHelperSingleflight(i); err == nil {
-					return nil
-				} else if err != ErrNotFound {
-					slog.Debug("Failed to scrape data from auth helper", "postID", i.PostID, "err", err)
-				}
-			}
-			if status == "fail" {
-				if err := scrapeRestriction(i.PostID); err != nil {
-					return err
-				}
-				return errors.New("scrapeFromGQL is blocked")
-			}
+		}
+		if status == "fail" {
 			if err := scrapeRestriction(i.PostID); err != nil {
 				return err
 			}
-			return ErrNotFound
+			return errors.New("scrapeFromGQL is blocked")
 		}
-	}
-
-	media := []gjson.Result{item}
-	if item.Get("edge_sidecar_to_children").Exists() {
-		media = item.Get("edge_sidecar_to_children.edges").Array()
-	}
-	if len(media) > maxMediaItems {
-		media = media[:maxMediaItems]
-	}
-
-	// Get username
-	i.Username = item.Get("owner.username").String()
-
-	// Get caption
-	i.Caption = strings.TrimSpace(item.Get("edge_media_to_caption.edges.0.node.text").String())
-
-	// Get medias
-	i.Medias = make([]Media, 0, len(media))
-	for _, m := range media {
-		if m.Get("node").Exists() {
-			m = m.Get("node")
+		if err := scrapeRestriction(i.PostID); err != nil {
+			return err
 		}
-		mediaURL := m.Get("video_url")
-		thumbnailURL := ""
-		displayURL := strings.TrimSpace(m.Get("display_url").String())
-		if !mediaURL.Exists() {
-			mediaURL = m.Get("display_url")
-		} else if displayURL != "" {
-			if u, err := url.Parse(displayURL); err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") {
-				thumbnailURL = displayURL
+		return ErrNotFound
+	}
+	if videoBlocked && !i.HasVideo() {
+		if mobileBody, mobileErr := scrapeFromGQLMobile(i.PostID); mobileErr == nil {
+			mobileItem := &InstaData{PostID: i.PostID}
+			if parseErr := parseGraphQLMediaData(mobileItem, gjson.ParseBytes(mobileBody).Get("data")); parseErr == nil && mobileItem.HasVideo() {
+				*i = *mobileItem
+				slog.Info("Video media upgraded from mobile GraphQL fallback", "postID", i.PostID)
 			}
+		} else {
+			slog.Debug("Failed to upgrade video from mobile GraphQL fallback", "postID", i.PostID, "err", mobileErr)
 		}
-		rawURL := mediaURL.String()
-		u, err := url.Parse(rawURL)
-		if err != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-			continue
-		}
-		typeName := m.Get("__typename").String()
-		if strings.Contains(strings.ToLower(typeName), "video") && !m.Get("video_url").Exists() {
-			continue
-		}
-		width := int(m.Get("dimensions.width").Int())
-		height := int(m.Get("dimensions.height").Int())
-		i.Medias = append(i.Medias, Media{
-			TypeName:     typeName,
-			URL:          rawURL,
-			ThumbnailURL: thumbnailURL,
-			Width:        width,
-			Height:       height,
-		})
 	}
 
 	// Failed to scrape from Embed
@@ -982,6 +973,281 @@ func (i *InstaData) scrapeData(allowAuth bool) error {
 		return ErrNotFound
 	}
 	return nil
+}
+
+func parseGraphQLMediaData(i *InstaData, gqlData gjson.Result) error {
+	item, shape := graphQLMediaRoot(gqlData)
+	if !presentResult(item) {
+		return ErrNotFound
+	}
+	if shape == "v1" {
+		return parseV1MediaData(i, item)
+	}
+	return parseXDTMediaData(i, item)
+}
+
+func graphQLMediaRoot(gqlData gjson.Result) (gjson.Result, string) {
+	for _, path := range []string{"shortcode_media", "xdt_shortcode_media"} {
+		if item := gqlData.Get(path); presentResult(item) {
+			return item, "xdt"
+		}
+	}
+	if item := gqlData.Get("xdt_api__v1__media__shortcode__web_info.items.0"); presentResult(item) {
+		return item, "v1"
+	}
+	return gjson.Result{}, ""
+}
+
+func parseXDTMediaData(i *InstaData, item gjson.Result) error {
+	i.Username = strings.TrimSpace(item.Get("owner.username").String())
+	i.Caption = strings.TrimSpace(item.Get("edge_media_to_caption.edges.0.node.text").String())
+
+	media := []gjson.Result{item}
+	if edges := item.Get("edge_sidecar_to_children.edges"); len(edges.Array()) > 0 {
+		media = edges.Array()
+	}
+	if len(media) > maxMediaItems {
+		media = media[:maxMediaItems]
+	}
+
+	i.Medias = make([]Media, 0, len(media))
+	for _, m := range media {
+		if media, ok := parseXDTAttachment(m); ok {
+			i.Medias = append(i.Medias, media)
+		}
+	}
+	if len(i.Medias) == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func parseV1MediaData(i *InstaData, item gjson.Result) error {
+	i.Username = strings.TrimSpace(item.Get("user.username").String())
+	i.Caption = strings.TrimSpace(item.Get("caption.text").String())
+	if i.Caption == "" {
+		i.Caption = strings.TrimSpace(item.Get("caption_text").String())
+	}
+
+	media := item.Get("carousel_media").Array()
+	if len(media) == 0 {
+		media = []gjson.Result{item}
+	}
+	if len(media) > maxMediaItems {
+		media = media[:maxMediaItems]
+	}
+
+	i.Medias = make([]Media, 0, len(media))
+	for _, m := range media {
+		if media, ok := parseV1Attachment(m); ok {
+			i.Medias = append(i.Medias, media)
+		}
+	}
+	if len(i.Medias) == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func parseXDTAttachment(value gjson.Result) (Media, bool) {
+	node := mediaNode(value)
+	thumbnail := bestDisplayURL(node)
+	if thumbnail == "" {
+		thumbnail = bestDisplayURL(value)
+	}
+	if !validMediaURL(thumbnail) {
+		return Media{}, false
+	}
+
+	typeName := strings.TrimSpace(node.Get("__typename").String())
+	if typeName == "" {
+		typeName = strings.TrimSpace(value.Get("__typename").String())
+	}
+	width := mediaWidth(node)
+	height := mediaHeight(node)
+	if width == 0 {
+		width = mediaWidth(value)
+	}
+	if height == 0 {
+		height = mediaHeight(value)
+	}
+
+	if isVideoMedia(node) || isVideoMedia(value) {
+		if video := bestVideoURL(node); validMediaURL(video) {
+			if typeName == "" {
+				typeName = "GraphVideo"
+			}
+			return Media{TypeName: typeName, URL: video, ThumbnailURL: thumbnail, Width: width, Height: height}, true
+		}
+		// Some blocked/fragile embeds expose only the video thumbnail. Keep a
+		// usable image preview instead of returning a broken video attachment.
+		return Media{TypeName: "GraphImage", URL: thumbnail, Width: width, Height: height}, true
+	}
+
+	mediaURL := strings.TrimSpace(node.Get("display_url").String())
+	if !validMediaURL(mediaURL) {
+		mediaURL = thumbnail
+	}
+	if typeName == "" {
+		typeName = "GraphImage"
+	}
+	return Media{TypeName: typeName, URL: mediaURL, Width: width, Height: height}, true
+}
+
+func parseV1Attachment(item gjson.Result) (Media, bool) {
+	thumbnail := bestV1ImageURL(item)
+	if !validMediaURL(thumbnail) {
+		return Media{}, false
+	}
+	width := mediaWidth(item)
+	height := mediaHeight(item)
+	if isVideoMedia(item) {
+		if video := bestVideoURL(item); validMediaURL(video) {
+			return Media{TypeName: "GraphVideo", URL: video, ThumbnailURL: thumbnail, Width: width, Height: height}, true
+		}
+		return Media{TypeName: "GraphImage", URL: thumbnail, Width: width, Height: height}, true
+	}
+	return Media{TypeName: "GraphImage", URL: thumbnail, Width: width, Height: height}, true
+}
+
+func mediaNode(value gjson.Result) gjson.Result {
+	if node := value.Get("node"); presentResult(node) {
+		return node
+	}
+	return value
+}
+
+func bestV1ImageURL(item gjson.Result) string {
+	if u := bestCandidateURL(item.Get("image_versions2.candidates")); u != "" {
+		return u
+	}
+	if u := strings.TrimSpace(item.Get("thumbnail_url").String()); u != "" {
+		return u
+	}
+	return bestDisplayURL(item)
+}
+
+func bestDisplayURL(node gjson.Result) string {
+	if u := bestCandidateURL(node.Get("display_resources")); u != "" {
+		return u
+	}
+	if u := bestCandidateURL(node.Get("thumbnail_resources")); u != "" {
+		return u
+	}
+	for _, path := range []string{"display_url", "thumbnail_url", "thumbnail_src"} {
+		if u := strings.TrimSpace(node.Get(path).String()); u != "" {
+			return u
+		}
+	}
+	if u := bestCandidateURL(node.Get("image_versions2.candidates")); u != "" {
+		return u
+	}
+	return ""
+}
+
+func bestVideoURL(node gjson.Result) string {
+	if u := strings.TrimSpace(node.Get("video_url").String()); u != "" {
+		return u
+	}
+	if u := bestCandidateURL(node.Get("video_versions")); u != "" {
+		return u
+	}
+	return bestCandidateURL(node.Get("video_resources"))
+}
+
+func bestCandidateURL(value gjson.Result) string {
+	bestURL := ""
+	bestArea := -1
+	for _, c := range value.Array() {
+		u := strings.TrimSpace(c.Get("url").String())
+		if u == "" {
+			u = strings.TrimSpace(c.Get("src").String())
+		}
+		if u == "" {
+			continue
+		}
+		area := candidateWidth(c) * candidateHeight(c)
+		if bestURL == "" || area > bestArea {
+			bestURL = u
+			bestArea = area
+		}
+	}
+	return bestURL
+}
+
+func isVideoMedia(value gjson.Result) bool {
+	typeName := strings.ToLower(value.Get("__typename").String())
+	return value.Get("is_video").Bool() || value.Get("media_type").Int() == 2 || strings.Contains(typeName, "video")
+}
+
+func mediaWidth(value gjson.Result) int {
+	for _, path := range []string{"dimensions.width", "original_width", "width"} {
+		if n := positiveInt(value.Get(path).Int()); n > 0 {
+			return n
+		}
+	}
+	return candidateWidth(bestImageCandidate(value))
+}
+
+func mediaHeight(value gjson.Result) int {
+	for _, path := range []string{"dimensions.height", "original_height", "height"} {
+		if n := positiveInt(value.Get(path).Int()); n > 0 {
+			return n
+		}
+	}
+	return candidateHeight(bestImageCandidate(value))
+}
+
+func bestImageCandidate(value gjson.Result) gjson.Result {
+	for _, path := range []string{"image_versions2.candidates", "display_resources", "thumbnail_resources"} {
+		if c := bestCandidate(value.Get(path)); presentResult(c) {
+			return c
+		}
+	}
+	return gjson.Result{}
+}
+
+func bestCandidate(value gjson.Result) gjson.Result {
+	var best gjson.Result
+	bestArea := -1
+	for _, c := range value.Array() {
+		area := candidateWidth(c) * candidateHeight(c)
+		if !presentResult(best) || area > bestArea {
+			best = c
+			bestArea = area
+		}
+	}
+	return best
+}
+
+func candidateWidth(value gjson.Result) int {
+	if n := positiveInt(value.Get("width").Int()); n > 0 {
+		return n
+	}
+	return positiveInt(value.Get("config_width").Int())
+}
+
+func candidateHeight(value gjson.Result) int {
+	if n := positiveInt(value.Get("height").Int()); n > 0 {
+		return n
+	}
+	return positiveInt(value.Get("config_height").Int())
+}
+
+func positiveInt(n int64) int {
+	if n < 0 {
+		return 0
+	}
+	return int(n)
+}
+
+func presentResult(value gjson.Result) bool {
+	return value.Exists() && value.Type != gjson.Null
+}
+
+func validMediaURL(raw string) bool {
+	u, err := url.Parse(strings.TrimSpace(raw))
+	return err == nil && u.Host != "" && (u.Scheme == "http" || u.Scheme == "https")
 }
 
 func scrapePublicOEmbed(i *InstaData) error {
@@ -1256,6 +1522,371 @@ func authHelperHealth() authHealth {
 }
 
 func scrapeFromGQL(postID string) ([]byte, error) {
+	body, err := scrapeFromGQLWeb(postID)
+	if err != nil {
+		mobileBody, mobileErr := scrapeFromGQLMobile(postID)
+		if mobileErr == nil {
+			slog.Info("Data fetched from mobile GraphQL fallback", "postID", postID)
+			return mobileBody, nil
+		}
+		return nil, err
+	}
+	if graphQLBodyHasMedia(body) {
+		return body, nil
+	}
+	mobileBody, mobileErr := scrapeFromGQLMobile(postID)
+	if mobileErr == nil && graphQLBodyHasMedia(mobileBody) {
+		slog.Info("Data fetched from mobile GraphQL fallback", "postID", postID)
+		return mobileBody, nil
+	}
+	return body, nil
+}
+
+func graphQLBodyHasMedia(body []byte) bool {
+	if !gjson.ValidBytes(body) {
+		return false
+	}
+	data := gjson.ParseBytes(body).Get("data")
+	item, _ := graphQLMediaRoot(data)
+	return presentResult(item)
+}
+
+type graphQLClientAttempt struct {
+	client *http.Client
+	proxy  string
+}
+
+type graphQLError struct {
+	Source string
+	Reason string
+	Status int
+	Err    error
+}
+
+func (e graphQLError) Error() string {
+	parts := []string{e.Source}
+	if e.Reason != "" {
+		parts = append(parts, e.Reason)
+	}
+	if e.Status > 0 {
+		parts = append(parts, "HTTP "+strconv.Itoa(e.Status))
+	}
+	if e.Err != nil {
+		parts = append(parts, e.Err.Error())
+	}
+	return strings.Join(parts, ": ")
+}
+
+func (e graphQLError) Unwrap() error {
+	return e.Err
+}
+
+func doGraphQLRequest(req *http.Request, source string) ([]byte, error) {
+	attempts := graphQLClientAttempts()
+	if envBool("INSTAFIX_PUBLIC_PROXY_HEDGED", true) {
+		proxyAttempts, directAttempts := splitGraphQLAttempts(attempts)
+		if len(proxyAttempts) > 1 {
+			body, err := doGraphQLRequestHedged(req, source, proxyAttempts)
+			if err == nil {
+				return body, nil
+			}
+			if len(directAttempts) > 0 {
+				directBody, directErr := doGraphQLRequestSequential(req, source, directAttempts)
+				if directErr == nil {
+					return directBody, nil
+				}
+				return nil, directErr
+			}
+			return nil, err
+		}
+	}
+	return doGraphQLRequestSequential(req, source, attempts)
+}
+
+func splitGraphQLAttempts(attempts []graphQLClientAttempt) ([]graphQLClientAttempt, []graphQLClientAttempt) {
+	proxyAttempts := make([]graphQLClientAttempt, 0, len(attempts))
+	directAttempts := make([]graphQLClientAttempt, 0, 1)
+	for _, attempt := range attempts {
+		if attempt.proxy == "" {
+			directAttempts = append(directAttempts, attempt)
+			continue
+		}
+		proxyAttempts = append(proxyAttempts, attempt)
+	}
+	return proxyAttempts, directAttempts
+}
+
+func doGraphQLRequestSequential(req *http.Request, source string, attempts []graphQLClientAttempt) ([]byte, error) {
+	var lastErr error
+	for _, attempt := range attempts {
+		reqCopy, err := cloneRequestWithFreshBody(req)
+		if err != nil {
+			return nil, err
+		}
+		body, err := doGraphQLAttempt(reqCopy, source, attempt)
+		if err != nil {
+			lastErr = err
+			continue
+		}
+		return body, nil
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("%s failed: no HTTP client available", source)
+	}
+	return nil, lastErr
+}
+
+func doGraphQLRequestHedged(req *http.Request, source string, attempts []graphQLClientAttempt) ([]byte, error) {
+	type result struct {
+		body []byte
+		err  error
+	}
+	ctx, cancel := context.WithCancel(req.Context())
+	defer cancel()
+	results := make(chan result, len(attempts))
+	hedgeDelay := envDurationMilliseconds("INSTAFIX_PUBLIC_PROXY_HEDGE_DELAY_MS", 1500*time.Millisecond)
+	started := 0
+	startAttempt := func(attempt graphQLClientAttempt) {
+		started++
+		go func() {
+			reqCopy, err := cloneRequestWithFreshBody(req.WithContext(ctx))
+			if err == nil {
+				resultBody, resultErr := doGraphQLAttempt(reqCopy, source, attempt)
+				results <- result{body: resultBody, err: resultErr}
+				return
+			}
+			results <- result{err: err}
+		}()
+	}
+
+	initial := envInt("INSTAFIX_PUBLIC_PROXY_HEDGE_INITIAL", 2)
+	if initial < 1 {
+		initial = 1
+	}
+	if initial > len(attempts) {
+		initial = len(attempts)
+	}
+	for started < initial {
+		startAttempt(attempts[started])
+	}
+
+	var lastErr error
+	for completed := 0; completed < len(attempts); {
+		var timer <-chan time.Time
+		if started < len(attempts) {
+			timer = time.After(hedgeDelay)
+		}
+		select {
+		case got := <-results:
+			completed++
+			if got.err == nil {
+				cancel()
+				return got.body, nil
+			}
+			lastErr = got.err
+			if started < len(attempts) {
+				startAttempt(attempts[started])
+			}
+		case <-timer:
+			if started < len(attempts) {
+				startAttempt(attempts[started])
+			}
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	if lastErr == nil {
+		lastErr = graphQLError{Source: source, Reason: "no_client"}
+	}
+	return nil, lastErr
+}
+
+func doGraphQLAttempt(req *http.Request, source string, attempt graphQLClientAttempt) ([]byte, error) {
+	res, err := attempt.client.Do(req)
+	if err != nil || res == nil {
+		if err == nil {
+			err = errors.New(source + " returned nil response")
+		}
+		wrapped := graphQLError{Source: source, Reason: "network", Err: err}
+		markPublicProxyFailure(attempt.proxy, wrapped)
+		return nil, wrapped
+	}
+	body, err := readGraphQLResponseBody(res, source)
+	if err != nil {
+		if shouldCooldownGraphQLStatus(res.StatusCode) {
+			markPublicProxyFailure(attempt.proxy, err)
+		}
+		return nil, err
+	}
+	if attempt.proxy != "" && shouldRetryGraphQLBody(body) {
+		err := graphQLError{Source: source, Reason: graphQLBodyReason(body)}
+		markPublicProxyFailure(attempt.proxy, err)
+		return nil, err
+	}
+	return body, nil
+}
+
+func readGraphQLResponseBody(res *http.Response, source string) ([]byte, error) {
+	defer res.Body.Close()
+	if res.StatusCode/100 != 2 {
+		return nil, graphQLError{Source: source, Reason: graphQLStatusReason(res.StatusCode), Status: res.StatusCode, Err: fmt.Errorf("HTTP status %s", res.Status)}
+	}
+	body, err := readLimitedHTTPBody(res, maxGraphQLBodyBytes)
+	if err != nil {
+		return nil, graphQLError{Source: source, Reason: "body_read_failed", Status: res.StatusCode, Err: err}
+	}
+	if !gjson.ValidBytes(body) {
+		return nil, graphQLError{Source: source, Reason: "invalid_json", Status: res.StatusCode}
+	}
+	if reason := graphQLBodyReason(body); reason != "" && reason != "no_media" {
+		return nil, graphQLError{Source: source, Reason: reason, Status: res.StatusCode}
+	}
+	return body, nil
+}
+
+func cloneRequestWithFreshBody(req *http.Request) (*http.Request, error) {
+	reqCopy := req.Clone(req.Context())
+	if req.GetBody != nil {
+		body, err := req.GetBody()
+		if err != nil {
+			return nil, err
+		}
+		reqCopy.Body = body
+	}
+	return reqCopy, nil
+}
+
+func graphQLClientAttempts() []graphQLClientAttempt {
+	attempts := make([]graphQLClientAttempt, 0, 3)
+	for _, proxyURL := range selectPublicProxyURLs(envInt("INSTAFIX_PUBLIC_PROXY_ATTEMPTS", 2)) {
+		client := publicProxyClient(proxyURL)
+		if client != nil {
+			attempts = append(attempts, graphQLClientAttempt{client: client, proxy: proxyURL})
+		}
+	}
+	if len(attempts) == 0 || !envBool("INSTAFIX_PUBLIC_PROXY_ONLY", false) {
+		attempts = append(attempts, graphQLClientAttempt{client: &http.Client{Transport: transport, Timeout: timeout}})
+	}
+	return attempts
+}
+
+func selectPublicProxyURLs(maxAttempts int) []string {
+	if maxAttempts <= 0 || len(publicProxyURLs) == 0 {
+		return nil
+	}
+	if maxAttempts > len(publicProxyURLs) {
+		maxAttempts = len(publicProxyURLs)
+	}
+	publicProxyMu.Lock()
+	defer publicProxyMu.Unlock()
+	now := time.Now()
+	selected := make([]string, 0, maxAttempts)
+	for scanned := 0; scanned < len(publicProxyURLs) && len(selected) < maxAttempts; scanned++ {
+		idx := (publicProxyCursor + scanned) % len(publicProxyURLs)
+		proxyURL := publicProxyURLs[idx]
+		if until, ok := publicProxyCooldowns[proxyURL]; ok && now.Before(until) {
+			continue
+		}
+		selected = append(selected, proxyURL)
+	}
+	publicProxyCursor = (publicProxyCursor + 1) % len(publicProxyURLs)
+	return selected
+}
+
+func publicProxyClient(rawProxyURL string) *http.Client {
+	publicProxyMu.Lock()
+	defer publicProxyMu.Unlock()
+	if client := publicProxyClients[rawProxyURL]; client != nil {
+		return client
+	}
+	proxyURL, err := url.Parse(rawProxyURL)
+	if err != nil || proxyURL.Scheme == "" || proxyURL.Host == "" {
+		slog.Warn("public GraphQL proxy ignored: invalid URL", "proxy", safeProxyLogValue(rawProxyURL), "err", err)
+		return nil
+	}
+	baseTransport := http.DefaultTransport.(*http.Transport).Clone()
+	baseTransport.Proxy = http.ProxyURL(proxyURL)
+	client := &http.Client{Transport: gzhttp.Transport(baseTransport, gzhttp.TransportAlwaysDecompress(true)), Timeout: timeout}
+	publicProxyClients[rawProxyURL] = client
+	return client
+}
+
+func markPublicProxyFailure(proxyURL string, err error) {
+	if proxyURL == "" {
+		return
+	}
+	publicProxyMu.Lock()
+	publicProxyCooldowns[proxyURL] = time.Now().Add(envDurationSeconds("INSTAFIX_PUBLIC_PROXY_COOLDOWN_SECONDS", 10*time.Minute))
+	publicProxyMu.Unlock()
+	slog.Debug("public GraphQL proxy cooled down", "proxy", safeProxyLogValue(proxyURL), "err", err)
+}
+
+func shouldCooldownGraphQLStatus(statusCode int) bool {
+	return statusCode == http.StatusUnauthorized || statusCode == http.StatusForbidden || statusCode == http.StatusTooManyRequests || statusCode >= 500
+}
+
+func graphQLStatusReason(statusCode int) string {
+	switch statusCode {
+	case http.StatusUnauthorized:
+		return "unauthorized"
+	case http.StatusForbidden:
+		return "forbidden"
+	case http.StatusTooManyRequests:
+		return "rate_limited"
+	case http.StatusNotFound:
+		return "not_found"
+	}
+	if statusCode >= 500 {
+		return "server_error"
+	}
+	return "http_error"
+}
+
+func shouldRetryGraphQLBody(body []byte) bool {
+	reason := graphQLBodyReason(body)
+	return reason == "require_login" || reason == "login_required" || reason == "feedback_required" || reason == "rate_limited" || reason == "temporarily_blocked"
+}
+
+func graphQLBodyReason(body []byte) string {
+	if graphQLBodyHasMedia(body) {
+		return ""
+	}
+	parsed := gjson.ParseBytes(body)
+	message := strings.ToLower(strings.TrimSpace(parsed.Get("message").String()))
+	status := strings.ToLower(strings.TrimSpace(parsed.Get("status").String()))
+	if parsed.Get("require_login").Bool() || strings.Contains(message, "require_login") {
+		return "require_login"
+	}
+	if strings.Contains(message, "login_required") || strings.Contains(message, "login required") {
+		return "login_required"
+	}
+	if strings.Contains(message, "feedback_required") {
+		return "feedback_required"
+	}
+	if strings.Contains(message, "checkpoint") || strings.Contains(message, "challenge") {
+		return "checkpoint_required"
+	}
+	if strings.Contains(message, "rate") || strings.Contains(message, "please wait") || strings.Contains(message, "too many") {
+		return "rate_limited"
+	}
+	if strings.Contains(message, "temporarily blocked") || strings.Contains(message, "blocked") {
+		return "temporarily_blocked"
+	}
+	if status == "fail" {
+		return "fail"
+	}
+	return "no_media"
+}
+
+func safeProxyLogValue(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return "invalid"
+	}
+	return u.Scheme + "://" + u.Host
+}
+
+func scrapeFromGQLWeb(postID string) ([]byte, error) {
 	gqlParams := url.Values{
 		"av":                       {"0"},
 		"__d":                      {"www"},
@@ -1280,11 +1911,14 @@ func scrapeFromGQL(postID string) ([]byte, error) {
 		"fb_api_req_friendly_name": {"PolarisPostActionLoadPostQueryQuery"},
 		"variables":                {`{"shortcode":"` + postID + `","fetch_comment_count":40,"parent_comment_count":24,"child_comment_count":3,"fetch_like_count":10,"fetch_tagged_user_count":null,"fetch_preview_comment_count":2,"has_threaded_comments":true,"hoisted_comment_id":null,"hoisted_reply_id":null}`},
 		"server_timestamps":        {"true"},
-		"doc_id":                   {"25531498899829322"},
+		"doc_id":                   {envString("INSTAFIX_WEB_GRAPHQL_DOC_ID", "25531498899829322")},
 	}
 	req, err := http.NewRequest("POST", "https://www.instagram.com/graphql/query/", strings.NewReader(gqlParams.Encode()))
 	if err != nil {
 		return nil, err
+	}
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader(gqlParams.Encode())), nil
 	}
 	req.Header = http.Header{
 		"Accept":                      {"*/*"},
@@ -1309,21 +1943,40 @@ func scrapeFromGQL(postID string) ([]byte, error) {
 		"X-Ig-App-Id":                 {"936619743392459"},
 	}
 
-	client := http.Client{Transport: transport, Timeout: timeout}
-	res, err := client.Do(req)
-	if err != nil || res == nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("GraphQL HTTP status %s", res.Status)
-	}
-	body, err := readLimitedHTTPBody(res, maxGraphQLBodyBytes)
+	return doGraphQLRequest(req, "GraphQL")
+}
+
+func scrapeFromGQLMobile(postID string) ([]byte, error) {
+	gqlParams := url.Values{}
+	gqlParams.Set("variables", `{"shortcode":"`+postID+`"}`)
+	gqlParams.Set("doc_id", envString("INSTAFIX_MOBILE_GRAPHQL_DOC_ID", "8845758582119845"))
+	gqlParams.Set("server_timestamps", "true")
+	referer := "https://www.instagram.com/p/" + postID + "/"
+	req, err := http.NewRequest("POST", "https://www.instagram.com/graphql/query/", strings.NewReader(gqlParams.Encode()))
 	if err != nil {
 		return nil, err
 	}
-	if !gjson.ValidBytes(body) {
-		return nil, errors.New("GraphQL returned invalid JSON")
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(strings.NewReader(gqlParams.Encode())), nil
 	}
-	return body, nil
+	req.Header = http.Header{
+		"Accept":           {"*/*"},
+		"Accept-Language":  {"en-US,en;q=0.8"},
+		"Content-Type":     {"application/x-www-form-urlencoded"},
+		"Referer":          {referer},
+		"User-Agent":       {envString("INSTAFIX_MOBILE_GRAPHQL_USER_AGENT", "Instagram 273.0.0.16.70 (iPhone15,2; iOS 17_5_1; en_US; en-US; scale=3.00; 1290x2796; 470085518)")},
+		"X-Ig-App-Id":      {"936619743392459"},
+		"X-Asbd-Id":        {"129477"},
+		"X-Requested-With": {"XMLHttpRequest"},
+	}
+
+	return doGraphQLRequest(req, "mobile GraphQL")
+}
+
+func envString(name, fallback string) string {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return fallback
+	}
+	return value
 }
