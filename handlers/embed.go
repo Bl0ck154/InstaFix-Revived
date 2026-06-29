@@ -217,6 +217,9 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		}
 		if media.ThumbnailURL != "" {
 			viewsData.ImageURL = publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(max(1, mediaNum)) + "?thumbnail=1"
+			viewsData.ImageWidth = media.Width
+			viewsData.ImageHeight = media.Height
+			viewsData.ImageAlt = strings.ReplaceAll(strings.TrimSpace(item.Caption), "\n", " ")
 		}
 		if !videoOversized {
 			viewsData.VideoURL = videoRoute

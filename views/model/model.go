@@ -15,6 +15,9 @@ type ViewsData struct {
 	TwitterSite  string
 	Creator      string
 	OGType       string
+	ImageWidth   int
+	ImageHeight  int
+	ImageAlt     string
 	Width        int `default:"400"`
 	Height       int `default:"400"`
 }

@@ -49,6 +49,7 @@ func Embed(v *model.ViewsData, wr io.Writer) {
 		WriteEscString(v.OGType, buffer)
 		buffer.WriteString(embed__3)
 	}
+	buffer.WriteString(`<meta property="og:locale" content="en_US"/>`)
 	if v.TwitterSite != "" {
 		buffer.WriteString(`<meta name="twitter:site" content="`)
 		WriteEscString(v.TwitterSite, buffer)
@@ -80,6 +81,18 @@ func Embed(v *model.ViewsData, wr io.Writer) {
 	if v.ImageURL != "" {
 		buffer.WriteString(embed__11)
 		WriteEscString(v.ImageURL, buffer)
+		buffer.WriteString(embed__3)
+	}
+	if v.ImageURL != "" && v.ImageWidth > 0 && v.ImageHeight > 0 {
+		buffer.WriteString(`<meta name="twitter:image:width" content="`)
+		WriteInt(int64(v.ImageWidth), buffer)
+		buffer.WriteString(`"/><meta name="twitter:image:height" content="`)
+		WriteInt(int64(v.ImageHeight), buffer)
+		buffer.WriteString(embed__3)
+	}
+	if v.ImageURL != "" && v.ImageAlt != "" {
+		buffer.WriteString(`<meta name="twitter:image:alt" content="`)
+		WriteEscString(v.ImageAlt, buffer)
 		buffer.WriteString(embed__3)
 	}
 	for _, imageURL := range v.ImageURLs {
@@ -114,6 +127,9 @@ func Embed(v *model.ViewsData, wr io.Writer) {
 	WriteEscString(v.Description, buffer)
 	buffer.WriteString(embed__3)
 	if v.Description != "" {
+		buffer.WriteString(`<meta name="description" content="`)
+		WriteEscString(v.Description, buffer)
+		buffer.WriteString(embed__3)
 		buffer.WriteString(embed__28)
 		WriteEscString(v.Description, buffer)
 		buffer.WriteString(embed__3)
@@ -121,6 +137,20 @@ func Embed(v *model.ViewsData, wr io.Writer) {
 	if v.ImageURL != "" {
 		buffer.WriteString(embed__18)
 		WriteEscString(v.ImageURL, buffer)
+		buffer.WriteString(`"/><meta property="og:image:secure_url" content="`)
+		WriteEscString(v.ImageURL, buffer)
+		buffer.WriteString(embed__3)
+	}
+	if v.ImageURL != "" && v.ImageWidth > 0 && v.ImageHeight > 0 {
+		buffer.WriteString(`<meta property="og:image:width" content="`)
+		WriteInt(int64(v.ImageWidth), buffer)
+		buffer.WriteString(`"/><meta property="og:image:height" content="`)
+		WriteInt(int64(v.ImageHeight), buffer)
+		buffer.WriteString(embed__3)
+	}
+	if v.ImageURL != "" && v.ImageAlt != "" {
+		buffer.WriteString(`<meta property="og:image:alt" content="`)
+		WriteEscString(v.ImageAlt, buffer)
 		buffer.WriteString(embed__3)
 	}
 	for _, imageURL := range v.ImageURLs {
