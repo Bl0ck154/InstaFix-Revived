@@ -205,7 +205,6 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			viewsData.Card = "player"
-			viewsData.ExtraCard = "summary_large_image"
 			viewsData.OGType = "video.other"
 		}
 		viewsData.Width = media.Width
