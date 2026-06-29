@@ -204,7 +204,11 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 				viewsData.Description = viewsData.Description + "\n\nVideo is too large for inline preview."
 			}
 		} else {
-			viewsData.Card = "summary_large_image"
+			if isTelegramBot(r.Header.Get("User-Agent")) {
+				viewsData.Card = "player"
+			} else {
+				viewsData.Card = "summary_large_image"
+			}
 			viewsData.OGType = "video.other"
 		}
 		viewsData.Width = media.Width
@@ -238,6 +242,10 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 	}
 
 	views.Embed(viewsData, w)
+}
+
+func isTelegramBot(userAgent string) bool {
+	return strings.Contains(strings.ToLower(userAgent), "telegrambot")
 }
 
 func ConfigureMaxInlineVideoBytes(maxBytes int64) {
