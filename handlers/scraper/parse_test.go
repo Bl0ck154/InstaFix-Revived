@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"errors"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/tidwall/gjson"
 )
@@ -93,5 +96,52 @@ func TestGraphQLStatusReason(t *testing.T) {
 	}
 	if got := graphQLStatusReason(503); got != "server_error" {
 		t.Fatalf("503 reason mismatch: %q", got)
+	}
+}
+
+func TestPublicVideoRefreshEnabled(t *testing.T) {
+	origProxies := publicProxyURLs
+	t.Cleanup(func() {
+		publicProxyURLs = origProxies
+		os.Unsetenv("INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT")
+	})
+
+	publicProxyURLs = nil
+	os.Unsetenv("INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT")
+	if publicVideoRefreshEnabled() {
+		t.Fatal("public video refresh should be disabled without proxies or direct override")
+	}
+
+	publicProxyURLs = []string{"http://127.0.0.1:8080"}
+	if !publicVideoRefreshEnabled() {
+		t.Fatal("public video refresh should be enabled with proxies")
+	}
+
+	publicProxyURLs = nil
+	os.Setenv("INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT", "true")
+	if !publicVideoRefreshEnabled() {
+		t.Fatal("public video refresh should be enabled with direct override")
+	}
+}
+
+func TestPublicVideoRefreshNegativeCache(t *testing.T) {
+	origProxies := publicProxyURLs
+	origTTL := publicVideoRefreshNegTTL
+	origMap := publicVideoRefreshNeg
+	t.Cleanup(func() {
+		publicProxyURLs = origProxies
+		publicVideoRefreshNegTTL = origTTL
+		publicVideoRefreshNeg = origMap
+	})
+
+	publicProxyURLs = []string{"http://127.0.0.1:8080"}
+	publicVideoRefreshNegTTL = time.Minute
+	publicVideoRefreshNeg = map[string]embedAuthNegative{}
+	savePublicVideoRefreshNegative("DaD4t0NN2zJ", errors.New("rate_limited"))
+	if reason, ok := publicVideoRefreshNegativeHit("DaD4t0NN2zJ"); !ok || reason != "rate_limited" {
+		t.Fatalf("expected negative cache hit, got ok=%v reason=%q", ok, reason)
+	}
+	if shouldTryPublicVideoRefresh("DaD4t0NN2zJ") {
+		t.Fatal("should not retry public video refresh during cooldown")
 	}
 }

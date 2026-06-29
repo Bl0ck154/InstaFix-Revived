@@ -31,32 +31,35 @@ import (
 )
 
 var (
-	RemoteScraperAddr  string
-	AuthHelperURL      string
-	ErrNotFound        = errors.New("post not found")
-	ErrRestricted      = errors.New("Instagram content restricted")
-	ErrAuthUnavailable = errors.New("cookie pool unavailable")
-	timeout            = 5 * time.Second
-	transport          http.RoundTripper
-	transportNoProxy   *http.Transport
-	sflightScraper     singleflight.Group
-	sflightAuthHelper  singleflight.Group
-	authHelperSlots    = make(chan struct{}, max(1, envInt("INSTAFIX_AUTH_HELPER_MAX_CONCURRENT", 1)))
-	embedAuthFallback  = envBool("INSTAFIX_EMBED_AUTH_FALLBACK", false)
-	embedAuthNegTTL    = envDurationSeconds("INSTAFIX_EMBED_AUTH_NEGATIVE_TTL_SECONDS", time.Hour)
-	embedAuthNegMu     sync.Mutex
-	embedAuthNeg       = make(map[string]embedAuthNegative)
-	authHealthMu       sync.Mutex
-	authHealthUntil    time.Time
-	authHealthStatus   authHealth
-	cacheFreshTTL      = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
-	cacheStaleTTL      = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
-	negativeCacheTTL   = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
-	publicProxyURLs      = splitCSVEnv("INSTAFIX_PUBLIC_PROXY_URLS")
-	publicProxyMu        sync.Mutex
-	publicProxyClients   = make(map[string]*http.Client)
-	publicProxyCooldowns = make(map[string]time.Time)
-	publicProxyCursor    int
+	RemoteScraperAddr        string
+	AuthHelperURL            string
+	ErrNotFound              = errors.New("post not found")
+	ErrRestricted            = errors.New("Instagram content restricted")
+	ErrAuthUnavailable       = errors.New("cookie pool unavailable")
+	timeout                  = 5 * time.Second
+	transport                http.RoundTripper
+	transportNoProxy         *http.Transport
+	sflightScraper           singleflight.Group
+	sflightAuthHelper        singleflight.Group
+	authHelperSlots          = make(chan struct{}, max(1, envInt("INSTAFIX_AUTH_HELPER_MAX_CONCURRENT", 1)))
+	embedAuthFallback        = envBool("INSTAFIX_EMBED_AUTH_FALLBACK", false)
+	embedAuthNegTTL          = envDurationSeconds("INSTAFIX_EMBED_AUTH_NEGATIVE_TTL_SECONDS", time.Hour)
+	embedAuthNegMu           sync.Mutex
+	embedAuthNeg             = make(map[string]embedAuthNegative)
+	authHealthMu             sync.Mutex
+	authHealthUntil          time.Time
+	authHealthStatus         authHealth
+	cacheFreshTTL            = envDurationSeconds("INSTAFIX_CACHE_FRESH_TTL_SECONDS", 24*time.Hour)
+	cacheStaleTTL            = envDurationSeconds("INSTAFIX_CACHE_STALE_TTL_SECONDS", 30*24*time.Hour)
+	negativeCacheTTL         = envDurationSeconds("INSTAFIX_NEGATIVE_CACHE_TTL_SECONDS", 6*time.Hour)
+	publicProxyURLs          = splitCSVEnv("INSTAFIX_PUBLIC_PROXY_URLS")
+	publicProxyMu            sync.Mutex
+	publicProxyClients       = make(map[string]*http.Client)
+	publicProxyCooldowns     = make(map[string]time.Time)
+	publicProxyCursor        int
+	publicVideoRefreshNegTTL = envDurationSeconds("INSTAFIX_PUBLIC_VIDEO_REFRESH_NEGATIVE_TTL_SECONDS", 10*time.Minute)
+	publicVideoRefreshNegMu  sync.Mutex
+	publicVideoRefreshNeg    = make(map[string]embedAuthNegative)
 )
 
 type authHealth struct {
@@ -215,6 +218,13 @@ func getDataPreferVideo(postID string, recordScrape bool) (*InstaData, error) {
 	if err == nil && item.HasVideo() {
 		return item, nil
 	}
+	if shouldTryPublicVideoRefresh(postID) {
+		if refreshed, refreshErr := RefreshVideoFromPublicGraphQL(postID); refreshErr == nil && refreshed.HasVideo() {
+			return refreshed, nil
+		} else if refreshErr != nil {
+			slog.Debug("Failed to refresh video data from public GraphQL", "postID", postID, "err", refreshErr)
+		}
+	}
 	if !recordScrape {
 		if err != nil {
 			return nil, err
@@ -232,6 +242,92 @@ func getDataPreferVideo(postID string, recordScrape bool) (*InstaData, error) {
 		return nil, err
 	}
 	return item, nil
+}
+
+func RefreshVideoFromPublicGraphQL(postID string) (*InstaData, error) {
+	if !validPostID(postID) {
+		return nil, errors.New("postID is not a valid Instagram post ID")
+	}
+	if !publicVideoRefreshEnabled() {
+		return nil, errors.New("public video refresh disabled: configure INSTAFIX_PUBLIC_PROXY_URLS or INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT=true")
+	}
+	if reason, ok := publicVideoRefreshNegativeHit(postID); ok {
+		return nil, fmt.Errorf("public video refresh cooldown: %s", reason)
+	}
+	ret, err, _ := sflightScraper.Do(postID+":public-video-refresh", func() (interface{}, error) {
+		body, err := scrapeFromGQLMobile(postID)
+		if err != nil || !graphQLBodyHasMedia(body) {
+			body, err = scrapeFromGQL(postID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		item := &InstaData{PostID: postID}
+		if err := parseGraphQLMediaData(item, gjson.ParseBytes(body).Get("data")); err != nil {
+			return nil, err
+		}
+		if !item.HasVideo() {
+			return nil, ErrNotFound
+		}
+		if err := normalizeMediaURLs(item); err != nil {
+			return nil, err
+		}
+		if err := saveDataToCache(item); err != nil {
+			slog.Warn("Failed to save public GraphQL video refresh to cache", "postID", item.PostID, "err", err)
+		}
+		return item, nil
+	})
+	if err != nil {
+		savePublicVideoRefreshNegative(postID, err)
+		return nil, err
+	}
+	return ret.(*InstaData), nil
+}
+
+func publicVideoRefreshEnabled() bool {
+	return len(publicProxyURLs) > 0 || envBool("INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT", false)
+}
+
+func shouldTryPublicVideoRefresh(postID string) bool {
+	if !publicVideoRefreshEnabled() {
+		return false
+	}
+	_, blocked := publicVideoRefreshNegativeHit(postID)
+	return !blocked
+}
+
+func publicVideoRefreshNegativeHit(postID string) (string, bool) {
+	if publicVideoRefreshNegTTL <= 0 || postID == "" {
+		return "", false
+	}
+	now := time.Now()
+	publicVideoRefreshNegMu.Lock()
+	entry, ok := publicVideoRefreshNeg[postID]
+	if ok && now.After(entry.until) {
+		delete(publicVideoRefreshNeg, postID)
+		ok = false
+	}
+	publicVideoRefreshNegMu.Unlock()
+	if !ok {
+		return "", false
+	}
+	return entry.reason, true
+}
+
+func savePublicVideoRefreshNegative(postID string, err error) {
+	if publicVideoRefreshNegTTL <= 0 || postID == "" || err == nil {
+		return
+	}
+	publicVideoRefreshNegMu.Lock()
+	if len(publicVideoRefreshNeg) > 4096 {
+		for k, v := range publicVideoRefreshNeg {
+			if time.Now().After(v.until) {
+				delete(publicVideoRefreshNeg, k)
+			}
+		}
+	}
+	publicVideoRefreshNeg[postID] = embedAuthNegative{until: time.Now().Add(publicVideoRefreshNegTTL), reason: compactErrorReason(err)}
+	publicVideoRefreshNegMu.Unlock()
 }
 
 func RefreshDataFromAuthHelper(postID string) (*InstaData, error) {
