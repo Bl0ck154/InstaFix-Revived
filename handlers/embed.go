@@ -192,7 +192,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		viewsData.ImageURL = sb.String()
 	default:
 		videoOversized := isInlineVideoOversized(media.URL)
-		videoRoute := publicBaseURL + "/videos/" + postID + "/" + strconv.Itoa(max(1, mediaNum))
+		videoRoute := publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(max(1, mediaNum))
 		directRoute := videoRoute
 		if videoOversized {
 			viewsData.Card = "summary_large_image"
