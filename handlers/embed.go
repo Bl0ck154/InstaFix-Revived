@@ -204,7 +204,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 				viewsData.Description = viewsData.Description + "\n\nVideo is too large for inline preview."
 			}
 		} else {
-			viewsData.Card = "player"
+			viewsData.Card = "summary_large_image"
 			viewsData.OGType = "video.other"
 		}
 		viewsData.Width = media.Width
@@ -219,8 +219,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 			viewsData.ImageURL = publicBaseURL + "/offload/" + postID + "/" + strconv.Itoa(max(1, mediaNum)) + "?thumbnail=1"
 		}
 		if !videoOversized {
-			sb.WriteString(videoRoute)
-			viewsData.VideoURL = sb.String()
+			viewsData.VideoURL = videoRoute
 		} else {
 			sb.WriteString(directRoute)
 			if viewsData.ImageURL == "" {

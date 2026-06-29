@@ -89,7 +89,7 @@ func Embed(v *model.ViewsData, wr io.Writer) {
 			buffer.WriteString(embed__3)
 		}
 	}
-	if v.VideoURL != "" {
+	if v.VideoURL != "" && v.Card == "player" {
 		buffer.WriteString(embed__13)
 		WriteInt(int64(v.Width), buffer)
 		buffer.WriteString(embed__14)
