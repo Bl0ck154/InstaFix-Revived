@@ -35,12 +35,12 @@ func (v demoVideo) ContentURL() string {
 	return v.WebMURL
 }
 
-type howInstaFix RevivedWorksPage struct {
+type howInstagram7WorksPage struct {
 	Video          demoVideo
 	StructuredData template.JS
 }
 
-func howInstaFix RevivedWorksStructuredData(video demoVideo) template.JS {
+func howInstagram7WorksStructuredData(video demoVideo) template.JS {
 	graph := []any{
 		map[string]any{
 			"@type":        "WebPage",
@@ -95,7 +95,7 @@ func howInstaFix RevivedWorksStructuredData(video demoVideo) template.JS {
 	return template.JS(payload)
 }
 
-var howInstaFix RevivedWorksTemplate = template.Must(template.New("how-instagram7-works").Parse(`<!DOCTYPE html>
+var howInstagram7WorksTemplate = template.Must(template.New("how-instagram7-works").Parse(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -149,7 +149,7 @@ var howInstaFix RevivedWorksTemplate = template.Must(template.New("how-instagram
         <div class="section-heading"><h2 id="steps-title">Three steps, no extra modes</h2><p>The whole workflow stays deliberately small: convert, copy, and send.</p></div>
         <ol class="steps">
           <li><span>STEP 1</span><b>Copy the public Reel link</b><p>Open the public Reel in Instagram and copy its share URL.</p></li>
-          <li><span>STEP 2</span><b>Add 7 after instagram</b><p>Use the converter to generate a URL on your own domain.</p></li>
+          <li><span>STEP 2</span><b>Convert the link</b><p>Use the converter to generate a URL on your own domain.</p></li>
           <li><span>STEP 3</span><b>Send the converted link</b><p>Paste the InstaFix Revived link into a new Telegram or Discord message and let the client load its preview.</p></li>
         </ol>
       </section>
@@ -185,13 +185,13 @@ var howInstaFix RevivedWorksTemplate = template.Must(template.New("how-instagram
 </body>
 </html>`))
 
-func renderHowInstaFix RevivedWorks(wr io.Writer, video demoVideo) error {
-	return howInstaFix RevivedWorksTemplate.Execute(wr, howInstaFix RevivedWorksPage{
+func renderHowInstagram7Works(wr io.Writer, video demoVideo) error {
+	return howInstagram7WorksTemplate.Execute(wr, howInstagram7WorksPage{
 		Video:          video,
-		StructuredData: howInstaFix RevivedWorksStructuredData(video),
+		StructuredData: howInstagram7WorksStructuredData(video),
 	})
 }
 
-func HowInstaFix RevivedWorks(wr io.Writer) bool {
-	return renderHowInstaFix RevivedWorks(wr, demoVideo{}) == nil
+func HowInstagram7Works(wr io.Writer) bool {
+	return renderHowInstagram7Works(wr, demoVideo{}) == nil
 }
