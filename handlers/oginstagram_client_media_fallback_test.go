@@ -37,7 +37,7 @@ func TestTelegramClientMediaFallbackKeepsInstagram7Metadata(t *testing.T) {
 	}
 	body := recorder.Body.String()
 	for _, want := range []string{
-		`property="og:site_name" content="Instagram7"`,
+		`property="og:site_name" content="InstaFix Revived"`,
 		`property="og:title" content="@creator_name"`,
 		`property="og:description" content="Creator caption"`,
 		`https://instagram7.test/offload/DbClientFallback/1.mp4?delivery=telegram-edge-stream-v1`,
