@@ -87,7 +87,7 @@ func TryOGInstagramClientMediaFallback(w http.ResponseWriter, r *http.Request, p
 	}
 	viewsData.Card = "summary_large_image"
 	viewsData.OGType = "article"
-	viewsData.Site = "Instagram7"
+	viewsData.Site = "InstaFix Revived"
 	viewsData.NoRedirect = true
 	viewsData.VideoURL = videoURL
 	// Reset fields which Embed initializes before scraping. A fallback must not
