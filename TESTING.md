@@ -1,5 +1,8 @@
 # Testing and local deployment
 
+For the simplest stateless setup, use `docker compose -f docker-compose.example.yml up -d --build`. By default the app is reachable on `127.0.0.1:3000` and the optional authenticated helper is not started. Put an HTTPS reverse proxy in front of the app before exposing it publicly, and use a domain name that doesn't incorporate someone else's trademark.
+
+
 ## App container
 
 ```sh
@@ -41,7 +44,12 @@ docker run -d --name instafix-auth-helper-test \
   instafix-auth-helper:test
 ```
 
-Start the app with the helper enabled:
+Start the app with the helper enabled (first remove the app container started in the earlier example, so Docker can reuse its name):
+
+```sh
+docker rm -f instafix-revived-test
+```
+
 
 ```sh
 docker run -d --name instafix-revived-test \
@@ -113,7 +121,7 @@ For Telegram Reel tests, verify both sides of the measured boundary:
 - a compact smart result must remain below the boundary (the encoder target is `20,471,520` bytes);
 - diagnostics or cache-busting tests that need guaranteed fresh Telegram ingestion should use a unique media **path**, not only a changed query string.
 
-The full investigation and current production policy are documented in [`docs/telegram-reel-previews.md`](docs/telegram-reel-previews.md).
+The full investigation and August 2026 tested behavior are documented in [`docs/telegram-reel-previews.md`](docs/telegram-reel-previews.md).
 
 Run the complete Go suite before publishing changes:
 
