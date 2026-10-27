@@ -1,4 +1,4 @@
-package scraper
+package handlers
 
 import (
 	"net/http"
