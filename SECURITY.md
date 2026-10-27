@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-The `main` branch receives security fixes.
+Security issues should be reported against the public `main` branch. The public code may lag behind private operational fixes, and not every private change is suitable for publication. Please report suspected vulnerabilities so they can be assessed and backported where appropriate.
 
 ## Reporting a vulnerability
 
