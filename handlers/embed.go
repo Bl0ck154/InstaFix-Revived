@@ -39,7 +39,7 @@ func getSharePostID(postID string) (string, error) {
 	if err != nil {
 		return postID, err
 	}
-	resp, err := http.DefaultTransport.RoundTrip(req)
+	resp, err := scraper.DoPublicInstagramRequestNoRedirect(req, "share reel redirect")
 	if err != nil {
 		return postID, err
 	}

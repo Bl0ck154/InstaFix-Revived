@@ -389,7 +389,10 @@ func RefreshVideoFromPublicGraphQL(postID string) (*InstaData, error) {
 }
 
 func publicVideoRefreshEnabled() bool {
-	return len(publicProxyURLs) > 0 || envBool("INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT", false)
+	if len(publicProxyURLs) > 0 {
+		return true
+	}
+	return !envBool("INSTAFIX_PUBLIC_PROXY_ONLY", false) && envBool("INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT", false)
 }
 
 func shouldTryPublicVideoRefresh(postID string) bool {
@@ -1124,7 +1127,6 @@ func (i *InstaData) scrapeData(allowAuth bool) error {
 		}
 	}
 
-	client := http.Client{Transport: transport, Timeout: timeout}
 	req, err := http.NewRequest("GET", "https://www.instagram.com/p/"+i.PostID+"/embed/captioned/", nil)
 	if err != nil {
 		return err
@@ -1133,7 +1135,7 @@ func (i *InstaData) scrapeData(allowAuth bool) error {
 	var body []byte
 	for retries := 0; retries < 3; retries++ {
 		err := func() error {
-			res, err := client.Do(req)
+			res, err := DoPublicInstagramRequest(req, "embed captioned")
 			if err != nil {
 				return err
 			}
@@ -1655,14 +1657,13 @@ func scrapePublicOEmbed(i *InstaData) error {
 	}
 	postURL := "https://www.instagram.com/p/" + i.PostID + "/"
 	u := "https://www.instagram.com/api/v1/oembed/?url=" + url.QueryEscape(postURL)
-	client := http.Client{Transport: transport, Timeout: timeout}
 	req, err := http.NewRequest("GET", u, nil)
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Accept", "application/json,text/html,*/*")
 	req.Header.Set("Referer", postURL)
-	res, err := client.Do(req)
+	res, err := DoPublicInstagramRequest(req, "public oEmbed")
 	if err != nil {
 		return err
 	}
@@ -1814,8 +1815,7 @@ func scrapeRestriction(postID string) error {
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; InstaFix/1.0)")
 
-	client := http.Client{Transport: transport, Timeout: timeout}
-	res, err := client.Do(req)
+	res, err := DoPublicInstagramRequest(req, "restriction oEmbed")
 	if err != nil || res == nil {
 		return nil
 	}
@@ -2222,7 +2222,7 @@ func cloneRequestWithFreshBody(req *http.Request) (*http.Request, error) {
 	return reqCopy, nil
 }
 
-func graphQLClientAttempts() []graphQLClientAttempt {
+func publicInstagramClientAttempts() []graphQLClientAttempt {
 	attempts := make([]graphQLClientAttempt, 0, 3)
 	for _, proxyURL := range selectPublicProxyURLs(envInt("INSTAFIX_PUBLIC_PROXY_ATTEMPTS", 2)) {
 		client := publicProxyClient(proxyURL)
@@ -2230,10 +2230,81 @@ func graphQLClientAttempts() []graphQLClientAttempt {
 			attempts = append(attempts, graphQLClientAttempt{client: client, proxy: proxyURL})
 		}
 	}
-	if len(attempts) == 0 || !envBool("INSTAFIX_PUBLIC_PROXY_ONLY", false) {
+	// Proxy-only is a fail-closed policy. If every configured proxy is cooling
+	// down or invalid, do not silently expose the VPS egress IP to Instagram.
+	if !envBool("INSTAFIX_PUBLIC_PROXY_ONLY", false) {
 		attempts = append(attempts, graphQLClientAttempt{client: &http.Client{Transport: transport, Timeout: timeout}})
 	}
 	return attempts
+}
+
+func graphQLClientAttempts() []graphQLClientAttempt {
+	return publicInstagramClientAttempts()
+}
+
+// DoPublicInstagramRequest routes public instagram.com acquisition through the
+// configured residential proxy pool. With INSTAFIX_PUBLIC_PROXY_ONLY=true it
+// fails closed when no proxy is available; it never falls back to VPS egress.
+func DoPublicInstagramRequest(req *http.Request, source string) (*http.Response, error) {
+	return doPublicInstagramRequest(req, source, false)
+}
+
+// DoPublicInstagramRequestNoRedirect is the same policy with redirects left to
+// the caller, used for Instagram share links where the Location header carries
+// the canonical shortcode.
+func DoPublicInstagramRequestNoRedirect(req *http.Request, source string) (*http.Response, error) {
+	return doPublicInstagramRequest(req, source, true)
+}
+
+func doPublicInstagramRequest(req *http.Request, source string, noRedirect bool) (*http.Response, error) {
+	if req == nil || req.URL == nil {
+		return nil, errors.New("nil public Instagram request")
+	}
+	host := strings.ToLower(strings.TrimSuffix(req.URL.Hostname(), "."))
+	if host != "instagram.com" && !strings.HasSuffix(host, ".instagram.com") {
+		return nil, fmt.Errorf("public Instagram request rejected for host %q", host)
+	}
+	attempts := publicInstagramClientAttempts()
+	if len(attempts) == 0 {
+		return nil, errors.New("public Instagram request blocked: proxy-only enabled and no proxy is available")
+	}
+	if source == "" {
+		source = "public Instagram request"
+	}
+	var lastErr error
+	for _, attempt := range attempts {
+		reqCopy, err := cloneRequestWithFreshBody(req)
+		if err != nil {
+			return nil, err
+		}
+		client := attempt.client
+		if noRedirect {
+			clone := *attempt.client
+			clone.CheckRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+			client = &clone
+		}
+		res, err := client.Do(reqCopy)
+		if err != nil || res == nil {
+			if err == nil {
+				err = errors.New(source + " returned nil response")
+			}
+			markPublicProxyFailure(attempt.proxy, err)
+			lastErr = err
+			continue
+		}
+		if attempt.proxy != "" && shouldCooldownGraphQLStatus(res.StatusCode) {
+			err = fmt.Errorf("%s HTTP %s", source, res.Status)
+			res.Body.Close()
+			markPublicProxyFailure(attempt.proxy, err)
+			lastErr = err
+			continue
+		}
+		return res, nil
+	}
+	if lastErr == nil {
+		lastErr = errors.New(source + ": no HTTP client available")
+	}
+	return nil, lastErr
 }
 
 func selectPublicProxyURLs(maxAttempts int) []string {
@@ -2424,6 +2495,9 @@ func scrapeFromGQLMobile(postID string) ([]byte, error) {
 // cases where a proxy returned syntactically valid GraphQL data but stripped
 // part of the DASH manifest (notably the audio AdaptationSet).
 func scrapeFromGQLMobileDirect(postID string) ([]byte, error) {
+	if envBool("INSTAFIX_PUBLIC_PROXY_ONLY", false) {
+		return nil, errors.New("direct Instagram GraphQL blocked by proxy-only policy")
+	}
 	req, err := newLoggedOutGraphQLRequest(postID)
 	if err != nil {
 		return nil, err
