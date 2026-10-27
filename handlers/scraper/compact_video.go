@@ -92,7 +92,9 @@ func ResolveCompactPreviewAV(postID string, maxBytes int64) (CompactPreviewSourc
 			fetch func(string) ([]byte, error)
 		}{
 			{name: "mobile", fetch: scrapeFromGQLMobile},
-			{name: "web", fetch: scrapeFromGQL},
+			// Mobile recovery already includes configured retry/proxy attempts.
+			// Use web-only fallback to avoid repeating mobile attempts and costs.
+			{name: "web", fetch: scrapeFromGQLWeb},
 		}
 		// A proxy may return HTTP 200 + valid GraphQL while omitting the audio
 		// AdaptationSet. When direct refresh is explicitly allowed, bypass the
