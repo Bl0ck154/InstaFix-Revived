@@ -93,8 +93,8 @@ func TryOGInstagramClientMediaFallback(w http.ResponseWriter, r *http.Request, p
 	// Reset fields which Embed initializes before scraping. A fallback must not
 	// accidentally inherit the generic "Instagram preview" title or stale
 	// geometry from an earlier partial rendering attempt.
-	viewsData.Title = "Instagram Reel"
-	viewsData.Creator = "@instagram"
+	viewsData.Title = ""
+	viewsData.Creator = ""
 	viewsData.ArticleAuthor = ""
 	viewsData.Description = ""
 	viewsData.Width = 720
@@ -118,6 +118,9 @@ func TryOGInstagramClientMediaFallback(w http.ResponseWriter, r *http.Request, p
 		// independently instead of discarding the entire partial result.
 		if description := embedDescription(item); description != "" {
 			viewsData.Description = description
+			if viewsData.Title == "" {
+				viewsData.Title = previewTitleFromDescription(description)
+			}
 		}
 		if len(item.Medias) >= mediaNum {
 			media := item.Medias[mediaNum-1]
@@ -155,6 +158,24 @@ func TryOGInstagramClientMediaFallback(w http.ResponseWriter, r *http.Request, p
 	)
 	views.Embed(viewsData, w)
 	return true
+}
+
+// previewTitleFromDescription uses real caption text instead of inventing a
+// generic author or Reel title when the public source is missing identity.
+func previewTitleFromDescription(description string) string {
+	description = strings.TrimSpace(description)
+	if description == "" {
+		return ""
+	}
+	if i := strings.IndexByte(description, '\n'); i >= 0 {
+		description = strings.TrimSpace(description[:i])
+	}
+	const maxRunes = 96
+	r := []rune(description)
+	if len(r) > maxRunes {
+		description = strings.TrimSpace(string(r[:maxRunes-1])) + "…"
+	}
+	return description
 }
 
 func telegramLocalVideoPresentationUsable(media scraper.Media) bool {

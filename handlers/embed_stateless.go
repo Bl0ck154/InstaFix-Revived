@@ -129,13 +129,14 @@ func EmbedStateless(w http.ResponseWriter, r *http.Request) {
 		viewsData.Title = "@" + item.Username
 		viewsData.Creator = "@" + item.Username
 		viewsData.ArticleAuthor = "https://www.instagram.com/" + item.Username + "/"
-	} else if preferVideo {
-		viewsData.Title = "Instagram Reel"
-	} else {
+	} else if !preferVideo {
 		viewsData.Title = "Instagram post"
 	}
 	if !isGallery {
 		viewsData.Description = embedDescription(item)
+		if preferVideo && viewsData.Title == "" {
+			viewsData.Title = previewTitleFromDescription(viewsData.Description)
+		}
 	}
 
 	originalMedia := item.Medias[selected]
@@ -178,10 +179,15 @@ func EmbedStateless(w http.ResponseWriter, r *http.Request) {
 			viewsData.Creator = "@" + item.Username
 			viewsData.ArticleAuthor = "https://www.instagram.com/" + item.Username + "/"
 		} else {
-			viewsData.Title = "Instagram Reel"
+			viewsData.Title = ""
+			viewsData.Creator = ""
+			viewsData.ArticleAuthor = ""
 		}
 		if !isGallery {
 			viewsData.Description = embedDescription(item)
+			if viewsData.Title == "" {
+				viewsData.Title = previewTitleFromDescription(viewsData.Description)
+			}
 		}
 	}
 
