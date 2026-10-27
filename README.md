@@ -14,7 +14,15 @@ If you're running your own instance, pick a neutral domain name that doesn't use
 
 ## Run your own instance
 
-The hosted demo is currently unavailable. You can deploy InstaFix Revived on a domain you control. Start with [`docker-compose.example.yml`](docker-compose.example.yml) and [`.env.example`](.env.example), then share preview links from your own instance.
+The hosted demo is currently unavailable. You can run InstaFix Revived yourself on a domain you control. For a local test with Docker Compose:
+
+```sh
+git clone https://github.com/Bl0ck154/InstaFix-Revived.git
+cd InstaFix-Revived
+docker compose -f docker-compose.example.yml up -d --build
+```
+
+The example binds the app to `127.0.0.1:3000` by default. Use your own hostname and an HTTPS reverse proxy if you want to make it public. The optional authenticated helper is disabled unless you select its Compose profile and provide your own cookie file. See [TESTING.md](TESTING.md) and [`.env.example`](.env.example) for other options.
 
 ## Preview
 
@@ -33,12 +41,12 @@ Use a preview link from your own InstaFix Revived instance to get a cleaner embe
 - Emits additional image tags for carousel previews where clients support them.
 - Includes an optional selective video proxy for preview bots, disabled by default.
 - Avoids exposing direct Instagram CDN URLs in the minimal homepage JSON preview API.
-- Uses a Telegram-specific oversized-Reel fallback: originals at or below 20 MiB stay direct; larger fresh previews are compacted below Telegram's measured WebPage video boundary.
+- Uses a Telegram-specific oversized-Reel fallback, based on August 2026 measurements: originals at or below 20 MiB stay direct; larger fresh previews are compacted below the measured limit.
 - Can emit an optional daily Telegram operations report with per-Reel decisions (`direct`, `compact`, `expected image`, `blocked`) and media sizes.
 
 ## Telegram Reel previews
 
-Telegram's fresh WebPage video ingestion was measured at an exact **20 MiB** boundary: `20,971,520` bytes is accepted, while `20,971,521` bytes is not attached as the preview video document. InstaFix Revived therefore keeps small originals untouched and, for Telegram only, uses a fast DASH video+audio remux for oversized Reels. The compact path uses stream copy rather than an automatic x264 re-encode.
+In testing on **August 26, 2026**, Telegram's fresh WebPage video ingestion had a **20 MiB** boundary: `20,971,520` bytes is accepted, while `20,971,521` bytes is not attached as the preview video document. InstaFix Revived therefore keeps small originals untouched and, for Telegram only, uses a fast DASH video+audio remux for oversized Reels. The compact path uses stream copy rather than an automatic x264 re-encode.
 
 The investigation also ruled out several misleading causes such as OG tag order, redirects, Cloudflare proxying and simple hostname changes. Older >20 MiB previews can still appear to work when Telegram already has a historical media document cached.
 
@@ -46,7 +54,7 @@ See [Telegram Reel previews: current design and the 20 MiB boundary](docs/telegr
 
 ## Optional Cloudflare edge
 
-InstaFix does not require a Cloudflare Worker. A normal Caddy/Nginx/reverse-proxy deployment is enough. Self-hosters who want an edge layer similar in purpose to the public instance can start from the generic [Cloudflare Worker example](examples/cloudflare-worker/README.md). It contains no production-specific routes, diagnostics, account IDs, or secrets.
+InstaFix does not require a Cloudflare Worker. A normal Caddy/Nginx/reverse-proxy deployment is enough. Self-hosters who want an optional edge layer can start from the generic [Cloudflare Worker example](examples/cloudflare-worker/README.md). It contains no production-specific routes, diagnostics, account IDs, or secrets.
 
 ## Why this exists
 
