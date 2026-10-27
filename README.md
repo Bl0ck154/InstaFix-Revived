@@ -24,7 +24,7 @@ docker compose -f docker-compose.example.yml up -d --build
 
 The example binds the app to `127.0.0.1:3000` by default. Use your own hostname and an HTTPS reverse proxy if you want to make it public. The optional authenticated helper is disabled unless you select its Compose profile and provide your own cookie file. See [TESTING.md](TESTING.md) and [`.env.example`](.env.example) for other options.
 
-**Self-hosting limitation:** parts of the current UI, URL converter, metadata and tests still contain hostname-specific assumptions from the original deployment. The example starts the application, but don't assume generated share links or search metadata will be correct for your own domain without reviewing those templates. A domain-agnostic code cleanup is still needed.
+**Domain configuration:** Set `INSTAFIX_PUBLIC_BASE_URL=https://previews.your-domain.example` before starting your public instance. The converter, canonical links, sitemap, robots.txt and preview metadata then use that origin instead of any previous deployment's hostname. Use a neutral name to avoid trademark problems.
 
 ## Preview
 
