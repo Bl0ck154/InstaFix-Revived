@@ -24,4 +24,4 @@ Do not copy account IDs, zone IDs, production domains, API tokens, or other depl
 
 ## Production note
 
-The public repository deliberately contains only this generic example. The `instagram7.com` production Worker configuration, diagnostics, domain routing, and operational deployment details are private and are not required to self-host InstaFix.
+This example is intentionally generic and contains no production domain routing, diagnostics, account IDs, or deployment secrets. Use a hostname you control and check that it doesn't infringe another company's trademark. The previous public demo is unavailable.
