@@ -309,7 +309,7 @@ func main() {
 	robotsHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		_, _ = w.Write([]byte("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\nDisallow: /fallback/\nDisallow: /grid/\nDisallow: /images/\nDisallow: /offload/\nDisallow: /oembed\nDisallow: /player/\nDisallow: /videos/\nSitemap: https://www.instagram7.com/sitemap.xml\n"))
+		_, _ = w.Write([]byte(strings.ReplaceAll("User-agent: *\nAllow: /\nDisallow: /admin/\nDisallow: /api/\nDisallow: /fallback/\nDisallow: /grid/\nDisallow: /images/\nDisallow: /offload/\nDisallow: /oembed\nDisallow: /player/\nDisallow: /videos/\nSitemap: __INSTAFIX_BASE_URL__/sitemap.xml\n", "__INSTAFIX_BASE_URL__", views.PublicBaseURL())))
 	}
 	r.Get("/robots.txt", robotsHandler)
 	r.Head("/robots.txt", robotsHandler)
@@ -317,38 +317,38 @@ func main() {
 	sitemapHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/xml; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=3600")
-		_, _ = w.Write([]byte(`<?xml version="1.0" encoding="UTF-8"?>
+		_, _ = w.Write([]byte(strings.ReplaceAll(`<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://www.instagram7.com/</loc>
+    <loc>__INSTAFIX_BASE_URL__/</loc>
     <lastmod>2026-08-08</lastmod>
   </url>
   <url>
-    <loc>https://www.instagram7.com/how-instagram7-works</loc>
+    <loc>__INSTAFIX_BASE_URL__/how-instagram7-works</loc>
     <lastmod>2026-08-08</lastmod>
   </url>
   <url>
-    <loc>https://www.instagram7.com/guides</loc>
+    <loc>__INSTAFIX_BASE_URL__/guides</loc>
     <lastmod>2026-07-29</lastmod>
   </url>
   <url>
-    <loc>https://www.instagram7.com/guides/instagram-link-preview-fixer</loc>
+    <loc>__INSTAFIX_BASE_URL__/guides/instagram-link-preview-fixer</loc>
     <lastmod>2026-07-27</lastmod>
   </url>
   <url>
-    <loc>https://www.instagram7.com/guides/instagram-reels-preview</loc>
+    <loc>__INSTAFIX_BASE_URL__/guides/instagram-reels-preview</loc>
     <lastmod>2026-07-27</lastmod>
   </url>
   <url>
-    <loc>https://www.instagram7.com/guides/telegram-instagram-preview</loc>
+    <loc>__INSTAFIX_BASE_URL__/guides/telegram-instagram-preview</loc>
     <lastmod>2026-07-27</lastmod>
   </url>
   <url>
-    <loc>https://www.instagram7.com/guides/discord-instagram-embed</loc>
+    <loc>__INSTAFIX_BASE_URL__/guides/discord-instagram-embed</loc>
     <lastmod>2026-07-29</lastmod>
   </url>
 </urlset>
-`))
+`, "__INSTAFIX_BASE_URL__", views.PublicBaseURL())))
 	}
 	r.Get("/sitemap.xml", sitemapHandler)
 	r.Head("/sitemap.xml", sitemapHandler)
@@ -365,8 +365,8 @@ func main() {
 		w.Header().Set("Content-Type", "image/svg+xml; charset=utf-8")
 		w.Header().Set("Cache-Control", "public, max-age=86400")
 		_, _ = w.Write([]byte(`<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
-  <title id="title">Instagram7.com — Cleaner Instagram Previews</title>
-  <desc id="desc">A preview image for Instagram7.com, an Instagram link preview fixer for chat apps.</desc>
+  <title id="title">InstaFix Revived — Cleaner Instagram Previews</title>
+  <desc id="desc">A preview image for InstaFix Revived, an Instagram link preview fixer for chat apps.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
       <stop offset="0" stop-color="#fff7ed"/>
@@ -386,7 +386,7 @@ func main() {
   <rect x="135" y="140" width="130" height="130" rx="32" fill="url(#brand)"/>
   <circle cx="200" cy="205" r="33" fill="none" stroke="white" stroke-width="14"/>
   <circle cx="238" cy="166" r="11" fill="white"/>
-  <text x="305" y="190" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="62" font-weight="800" fill="#2c241e">Instagram7.com</text>
+  <text x="305" y="190" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="62" font-weight="800" fill="#2c241e">InstaFix Revived</text>
   <text x="305" y="252" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="32" font-weight="600" fill="#6e645a">Cleaner Instagram previews for chat apps</text>
   <text x="135" y="350" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="42" font-weight="800" fill="#2c241e">Fix Instagram posts and Reels</text>
   <text x="135" y="405" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" fill="#6e645a">Replace instagram.com with instagram7.com for cleaner embeds and playable video previews when available.</text>
