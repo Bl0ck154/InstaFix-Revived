@@ -121,7 +121,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 	viewsData.Title = "Instagram preview"
 	viewsData.URL = instagramOriginURL(r.URL.Path, postID)
 	viewsData.CanonicalURL = viewsData.URL
-	viewsData.Site = "Instagram7"
+	viewsData.Site = "InstaFix Revived"
 	if !utils.IsBot(userAgent) {
 		http.Redirect(w, r, viewsData.URL, http.StatusFound)
 		return
@@ -502,7 +502,7 @@ func previewURLKind(raw string) string {
 			return "direct_cdn_mp4:" + host
 		}
 		return "direct_cdn:" + host
-	case strings.Contains(host, "instagram7.com") && strings.Contains(u.Path, "/offload/"):
+	case strings.EqualFold(host, views.PublicHost()) && strings.HasPrefix(u.Path, "/offload/"):
 		return "offload"
 	default:
 		return "other:" + host
