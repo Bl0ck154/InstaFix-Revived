@@ -9,6 +9,8 @@ Thank you for helping maintain InstaFix Revived.
 3. Keep authenticated fallback optional, local-only, and conservative.
 4. Do not add browser automation/headless scraping unless there is a clear, reviewed reason.
 5. Do not commit secrets, cookies, production `.env` files, logs, or private deployment details.
+6. Avoid hardcoding any particular deployment hostname into new UI, sitemap, URL-conversion or metadata code. Independently operated instances should use their own hostname.
+7. If you add deployment examples, use neutral domains and warn that trademarks in domain names can trigger registrar suspension even when the site is independent.
 
 ## Validation
 
