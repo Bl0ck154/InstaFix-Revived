@@ -15,8 +15,8 @@ func TestGuidesHaveUniqueCanonicalAndSearchMetadata(t *testing.T) {
 			}
 			html := out.String()
 			checks := []string{
-				`<title>` + page.Title + ` | Instagram7</title>`,
-				`rel="canonical" href="https://www.instagram7.com/guides/` + slug + `"`,
+				`<title>` + page.Title + ` | InstaFix Revived</title>`,
+				`rel="canonical" href="http://localhost:3000/guides/` + slug + `"`,
 				`<meta name="description" content="` + page.Description + `"`,
 				`"@type": "TechArticle"`,
 				`href="/"`,
@@ -47,12 +47,12 @@ func TestGuideIndexLinksToAllGuides(t *testing.T) {
 	}
 	html := out.String()
 	for _, check := range []string{
-		`<title>` + guideIndexPage.Title + ` | Instagram7</title>`,
-		`rel="canonical" href="https://www.instagram7.com/guides"`,
+		`<title>` + guideIndexPage.Title + ` | InstaFix Revived</title>`,
+		`rel="canonical" href="http://localhost:3000/guides"`,
 		`"@type": "CollectionPage"`,
 		`class="guide-card-grid"`,
 		`--bg-main: #fbf9f6`,
-		`class="brand" href="/">Instagram7.com</a>`,
+		`class="brand" href="/">InstaFix Revived</a>`,
 		`href="/guides/instagram-link-preview-fixer"`,
 		`href="/guides/instagram-reels-preview"`,
 		`href="/guides/telegram-instagram-preview"`,
@@ -73,8 +73,8 @@ func TestDiscordGuideIncludesWorkingGenerator(t *testing.T) {
 	for _, check := range []string{
 		`id="discord-generator"`,
 		`Generate Discord link`,
-		`instagram7.com/' + publication.kind`,
-		`host !== 'instagram.com' && host !== 'instagram7.com'`,
+		`http://localhost:3000/' + publication.kind`,
+		`host !== 'instagram.com' && host !== 'localhost:3000'`,
 		`if (shortcodePattern.test(value)) return { kind: 'p', id: value };`,
 		`class="tool-showcase"`,
 	} {
