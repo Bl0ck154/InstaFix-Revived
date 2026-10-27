@@ -35,48 +35,48 @@ func (v demoVideo) ContentURL() string {
 	return v.WebMURL
 }
 
-type howInstagram7WorksPage struct {
+type howInstaFix RevivedWorksPage struct {
 	Video          demoVideo
 	StructuredData template.JS
 }
 
-func howInstagram7WorksStructuredData(video demoVideo) template.JS {
+func howInstaFix RevivedWorksStructuredData(video demoVideo) template.JS {
 	graph := []any{
 		map[string]any{
 			"@type":        "WebPage",
-			"@id":          "https://www.instagram7.com/how-instagram7-works#page",
-			"url":          "https://www.instagram7.com/how-instagram7-works",
-			"name":         "How Instagram7 Fixes Instagram Reel Previews",
-			"description":  "See a live Instagram Reel example and the three-step Instagram7 workflow.",
+			"@id":          "__INSTAFIX_BASE_URL__/how-instagram7-works#page",
+			"url":          "__INSTAFIX_BASE_URL__/how-instagram7-works",
+			"name":         "How InstaFix Revived Fixes Instagram Reel Previews",
+			"description":  "See a live Instagram Reel example and the three-step InstaFix Revived workflow.",
 			"inLanguage":   "en",
 			"dateModified": "2026-08-08",
 		},
 		map[string]any{
 			"@type":       "HowTo",
-			"@id":         "https://www.instagram7.com/how-instagram7-works#steps",
-			"name":        "How to fix an Instagram Reel preview with Instagram7",
-			"description": "Copy a public Instagram Reel URL, add 7 to the domain, and send the converted link in a chat.",
+			"@id":         "__INSTAFIX_BASE_URL__/how-instagram7-works#steps",
+			"name":        "How to fix an Instagram Reel preview with InstaFix Revived",
+			"description": "Copy a public Instagram Reel URL, convert it on your instance, and send the converted link in a chat.",
 			"totalTime":   "PT1M",
 			"step": []any{
 				map[string]any{"@type": "HowToStep", "position": 1, "name": "Copy the public Reel link", "text": "Open the public Reel in Instagram and copy its share URL."},
-				map[string]any{"@type": "HowToStep", "position": 2, "name": "Add 7 after instagram", "text": "Change instagram.com to instagram7.com, or paste the original URL into the converter."},
-				map[string]any{"@type": "HowToStep", "position": 3, "name": "Send the converted link", "text": "Paste the Instagram7 link into a new Telegram or Discord message and let the client load its preview."},
+				map[string]any{"@type": "HowToStep", "position": 2, "name": "Convert the Instagram URL", "text": "Paste the original URL into your instance's converter."},
+				map[string]any{"@type": "HowToStep", "position": 3, "name": "Send the converted link", "text": "Paste the InstaFix Revived link into a new Telegram or Discord message and let the client load its preview."},
 			},
 		},
 		map[string]any{
 			"@type": "FAQPage",
-			"@id":   "https://www.instagram7.com/how-instagram7-works#faq",
+			"@id":   "__INSTAFIX_BASE_URL__/how-instagram7-works#faq",
 			"mainEntity": []any{
-				map[string]any{"@type": "Question", "name": "Does Instagram7 download or re-upload the Reel?", "acceptedAnswer": map[string]any{"@type": "Answer", "text": "Instagram7 prepares preview metadata for a public publication. Media delivery depends on what Instagram currently makes available and what the receiving chat client supports."}},
+				map[string]any{"@type": "Question", "name": "Does InstaFix Revived download or re-upload the Reel?", "acceptedAnswer": map[string]any{"@type": "Answer", "text": "InstaFix Revived prepares preview metadata for a public publication. Media delivery depends on what Instagram currently makes available and what the receiving chat client supports."}},
 				map[string]any{"@type": "Question", "name": "Why can Telegram or Discord still show an old preview?", "acceptedAnswer": map[string]any{"@type": "Answer", "text": "Chat apps cache link previews. Send the converted URL as a fresh message and test another public Reel to distinguish a cached result from a source-specific problem."}},
-				map[string]any{"@type": "Question", "name": "Does it work with private Instagram accounts?", "acceptedAnswer": map[string]any{"@type": "Answer", "text": "No. Instagram7 only works with publication data that is publicly available and does not make private, deleted, age-restricted, or region-restricted content public."}},
+				map[string]any{"@type": "Question", "name": "Does it work with private Instagram accounts?", "acceptedAnswer": map[string]any{"@type": "Answer", "text": "No. InstaFix Revived only works with publication data that is publicly available and does not make private, deleted, age-restricted, or region-restricted content public."}},
 			},
 		},
 	}
 	if video.Ready() {
 		videoObject := map[string]any{
 			"@type":        "VideoObject",
-			"@id":          "https://www.instagram7.com/how-instagram7-works#video",
+			"@id":          "__INSTAFIX_BASE_URL__/how-instagram7-works#video",
 			"name":         video.Name,
 			"description":  video.Description,
 			"thumbnailUrl": []string{video.PosterURL},
@@ -95,26 +95,26 @@ func howInstagram7WorksStructuredData(video demoVideo) template.JS {
 	return template.JS(payload)
 }
 
-var howInstagram7WorksTemplate = template.Must(template.New("how-instagram7-works").Parse(`<!DOCTYPE html>
+var howInstaFix RevivedWorksTemplate = template.Must(template.New("how-instagram7-works").Parse(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="See a live Instagram Reel example and the three-step Instagram7 workflow.">
+  <meta name="description" content="See a live Instagram Reel example and the three-step InstaFix Revived workflow.">
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1">
-  <link rel="canonical" href="https://www.instagram7.com/how-instagram7-works">
+  <link rel="canonical" href="__INSTAFIX_BASE_URL__/how-instagram7-works">
   <meta property="og:type" content="website">
-  <meta property="og:site_name" content="Instagram7">
-  <meta property="og:title" content="How Instagram7 Fixes Instagram Reel Previews">
+  <meta property="og:site_name" content="InstaFix Revived">
+  <meta property="og:title" content="How InstaFix Revived Fixes Instagram Reel Previews">
   <meta property="og:description" content="A live Reel example and the simple add-7 workflow.">
-  <meta property="og:url" content="https://www.instagram7.com/how-instagram7-works">
-  <meta property="og:image" content="https://www.instagram7.com/site-preview.svg">
-  <meta property="og:image:alt" content="Instagram7 public Instagram preview service">
+  <meta property="og:url" content="__INSTAFIX_BASE_URL__/how-instagram7-works">
+  <meta property="og:image" content="__INSTAFIX_BASE_URL__/site-preview.svg">
+  <meta property="og:image:alt" content="InstaFix Revived public Instagram preview service">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="How Instagram7 Fixes Instagram Reel Previews">
+  <meta name="twitter:title" content="How InstaFix Revived Fixes Instagram Reel Previews">
   <meta name="twitter:description" content="A live Reel example and the simple add-7 workflow.">
-  <meta name="twitter:image" content="https://www.instagram7.com/site-preview.svg">
-  <title>How Instagram7 Fixes Instagram Reel Previews</title>
+  <meta name="twitter:image" content="__INSTAFIX_BASE_URL__/site-preview.svg">
+  <title>How InstaFix Revived Fixes Instagram Reel Previews</title>
   <script type="application/ld+json">{{.StructuredData}}</script>
   <style>
     :root{color-scheme:light;--bg:#fbf9f6;--card:#fff;--border:rgba(139,92,26,.14);--text:#2c241e;--muted:#6e645a;--accent:#4f46e5;--accent-soft:#eef2ff;--font:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;--mono:'JetBrains Mono',ui-monospace,monospace}
@@ -123,34 +123,34 @@ var howInstagram7WorksTemplate = template.Must(template.New("how-instagram7-work
 </head>
 <body>
   <div class="shell">
-    <header><a class="brand" href="/">Instagram7.com</a><nav aria-label="Primary navigation"><a href="/#converter">Converter</a><a href="/guides">Guides</a><a href="https://github.com/Bl0ck154/InstaFix-Revived" target="_blank" rel="noopener noreferrer">GitHub</a></nav></header>
+    <header><a class="brand" href="/">InstaFix Revived</a><nav aria-label="Primary navigation"><a href="/#converter">Converter</a><a href="/guides">Guides</a><a href="https://github.com/Bl0ck154/InstaFix-Revived" target="_blank" rel="noopener noreferrer">GitHub</a></nav></header>
     <main>
       <section class="hero">
         <span class="eyebrow">Real workflow</span>
-        <h1>Fix Instagram Reel previews by adding one number.</h1>
-        <p>Instagram7 turns a public Instagram publication URL into a preview-focused share link. The original publication stays the destination; the receiving chat app gets cleaner metadata and playable media when available.</p>
+        <h1>Fix Instagram Reel previews on your own domain.</h1>
+        <p>InstaFix Revived turns a public Instagram publication URL into a preview-focused share link. The original publication stays the destination; the receiving chat app gets cleaner metadata and playable media when available.</p>
       </section>
 
       <section class="live-example" aria-labelledby="live-example-title">
         <div class="live-copy">
           <span class="eyebrow">Live backend example</span>
-          <h2 id="live-example-title">This Reel is loaded through the real service.</h2>
-          <p>The player uses the exact MP4 published as our public Reel. Instagram7 serves an owned copy so this demonstration stays playable when Instagram temporarily withholds a signed media URL.</p>
-          <div class="domain-change" aria-label="Change instagram.com to instagram7.com"><span>instagram.com</span><b aria-hidden="true">→</b><span>instagram<strong>7</strong>.com</span></div>
-          <a class="cta" href="https://www.instagram7.com/reels/Dbidjf_C4nf/">Open the live Instagram7 Reel example</a>
+          <h2 id="live-example-title">This Reel is loaded through this instance.</h2>
+          <p>This example uses an included demo asset, so it can be played without requesting a fresh media URL from Instagram.</p>
+          <div class="domain-change" aria-label="Convert an Instagram link for this instance"><span>instagram.com</span><b aria-hidden="true">→</b><span>__INSTAFIX_HOST__</span></div>
+          <a class="cta" href="__INSTAFIX_BASE_URL__/reels/Dbidjf_C4nf/">Open this instance's Reel example</a>
         </div>
         <figure class="live-media">
           <video controls muted playsinline preload="metadata" poster="/assets/demo/instagram7-test-reel-poster.webp"><source src="/assets/demo/instagram7-test-reel.mp4" type="video/mp4">Your browser cannot play this Reel preview.</video>
-          <figcaption>Our real public Reel, served by the Instagram7 backend as a stable demo asset.</figcaption>
+          <figcaption>A bundled demonstration video, served locally by InstaFix Revived.</figcaption>
         </figure>
       </section>
 
       <section aria-labelledby="steps-title">
-        <div class="section-heading"><h2 id="steps-title">Three steps, no extra modes</h2><p>The whole workflow stays deliberately small: add 7, copy, and send.</p></div>
+        <div class="section-heading"><h2 id="steps-title">Three steps, no extra modes</h2><p>The whole workflow stays deliberately small: convert, copy, and send.</p></div>
         <ol class="steps">
           <li><span>STEP 1</span><b>Copy the public Reel link</b><p>Open the public Reel in Instagram and copy its share URL.</p></li>
-          <li><span>STEP 2</span><b>Add 7 after instagram</b><p>Change instagram.com to instagram7.com, or paste the original URL into the converter.</p></li>
-          <li><span>STEP 3</span><b>Send the converted link</b><p>Paste the Instagram7 link into a new Telegram or Discord message and let the client load its preview.</p></li>
+          <li><span>STEP 2</span><b>Add 7 after instagram</b><p>Use the converter to generate a URL on your own domain.</p></li>
+          <li><span>STEP 3</span><b>Send the converted link</b><p>Paste the InstaFix Revived link into a new Telegram or Discord message and let the client load its preview.</p></li>
         </ol>
       </section>
 
@@ -172,26 +172,26 @@ var howInstagram7WorksTemplate = template.Must(template.New("how-instagram7-work
       <section aria-labelledby="faq-title">
         <div class="section-heading"><h2 id="faq-title">Frequently asked questions</h2></div>
         <div class="faq">
-          <article><h3>Does Instagram7 download or re-upload the Reel?</h3><p>Instagram7 prepares preview metadata for a public publication. Media delivery depends on what Instagram currently makes available and what the receiving chat client supports.</p></article>
+          <article><h3>Does InstaFix Revived download or re-upload the Reel?</h3><p>InstaFix Revived prepares preview metadata for a public publication. Media delivery depends on what Instagram currently makes available and what the receiving chat client supports.</p></article>
           <article><h3>Why can Telegram or Discord still show an old preview?</h3><p>Chat apps cache link previews. Send the converted URL as a fresh message and test another public Reel to distinguish a cached result from a source-specific problem.</p></article>
-          <article><h3>Does it work with private Instagram accounts?</h3><p>No. Instagram7 only works with publication data that is publicly available and does not make private, deleted, age-restricted, or region-restricted content public.</p></article>
+          <article><h3>Does it work with private Instagram accounts?</h3><p>No. InstaFix Revived only works with publication data that is publicly available and does not make private, deleted, age-restricted, or region-restricted content public.</p></article>
         </div>
       </section>
 
-      <section class="section-heading"><h2>Try your own public Instagram link</h2><p>The converter accepts posts, Reels, and legacy TV publication URLs.</p><p><a class="cta" href="/#converter">Back to the Instagram7 converter</a></p></section>
+      <section class="section-heading"><h2>Try your own public Instagram link</h2><p>The converter accepts posts, Reels, and legacy TV publication URLs.</p><p><a class="cta" href="/#converter">Back to the InstaFix Revived converter</a></p></section>
     </main>
-    <footer>Instagram7 is powered by InstaFix Revived and is not affiliated with Instagram or Meta.</footer>
+    <footer>InstaFix Revived is powered by InstaFix Revived and is not affiliated with Instagram or Meta.</footer>
   </div>
 </body>
 </html>`))
 
-func renderHowInstagram7Works(wr io.Writer, video demoVideo) error {
-	return howInstagram7WorksTemplate.Execute(wr, howInstagram7WorksPage{
+func renderHowInstaFix RevivedWorks(wr io.Writer, video demoVideo) error {
+	return howInstaFix RevivedWorksTemplate.Execute(wr, howInstaFix RevivedWorksPage{
 		Video:          video,
-		StructuredData: howInstagram7WorksStructuredData(video),
+		StructuredData: howInstaFix RevivedWorksStructuredData(video),
 	})
 }
 
-func HowInstagram7Works(wr io.Writer) bool {
-	return renderHowInstagram7Works(wr, demoVideo{}) == nil
+func HowInstaFix RevivedWorks(wr io.Writer) bool {
+	return renderHowInstaFix RevivedWorks(wr, demoVideo{}) == nil
 }
