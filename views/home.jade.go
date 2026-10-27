@@ -13,7 +13,7 @@ const homeHTML = `<!DOCTYPE html>
   <meta name="theme-color" content="#fbf9f6">
   <meta name="color-scheme" content="light">
   <meta name="application-name" content="InstaFix Revived">
-  <meta name="apple-mobile-web-app-title" content="Instagram7">
+  <meta name="apple-mobile-web-app-title" content="InstaFix Revived">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -28,56 +28,56 @@ const homeHTML = `<!DOCTYPE html>
   <meta name="rating" content="general">
   <meta name="distribution" content="global">
   <meta name="language" content="English">
-  <link rel="canonical" href="https://www.instagram7.com/">
-  <link rel="home" href="https://www.instagram7.com/">
+  <link rel="canonical" href="__INSTAFIX_BASE_URL__/">
+  <link rel="home" href="__INSTAFIX_BASE_URL__/">
   <link rel="me" href="https://github.com/Bl0ck154">
   <link rel="author" href="https://github.com/Bl0ck154">
   <link rel="publisher" href="https://github.com/Bl0ck154">
-  <link rel="sitemap" type="application/xml" href="https://www.instagram7.com/sitemap.xml">
-  <meta property="og:title" content="Instagram Link Fixer for Discord &amp; Telegram | Instagram7">
-  <meta property="og:site_name" content="Instagram7">
+  <link rel="sitemap" type="application/xml" href="__INSTAFIX_BASE_URL__/sitemap.xml">
+  <meta property="og:title" content="Instagram Link Fixer for Discord &amp; Telegram | InstaFix Revived">
+  <meta property="og:site_name" content="InstaFix Revived">
   <meta property="og:description" content="Paste a public Instagram post, Reel, or shortcode to generate a cleaner share link for Discord, Telegram, and other chat apps.">
   <meta property="og:type" content="website">
-  <meta property="og:url" content="https://www.instagram7.com/">
+  <meta property="og:url" content="__INSTAFIX_BASE_URL__/">
   <meta property="og:locale" content="en_US">
-  <meta property="og:image" content="https://www.instagram7.com/site-preview.svg">
-  <meta property="og:image:secure_url" content="https://www.instagram7.com/site-preview.svg">
+  <meta property="og:image" content="__INSTAFIX_BASE_URL__/site-preview.svg">
+  <meta property="og:image:secure_url" content="__INSTAFIX_BASE_URL__/site-preview.svg">
   <meta property="og:image:type" content="image/svg+xml">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
-  <meta property="og:image:alt" content="Instagram7.com — cleaner Instagram previews for chat apps">
+  <meta property="og:image:alt" content="InstaFix Revived — cleaner Instagram previews for chat apps">
   <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="Instagram Link Fixer for Discord &amp; Telegram | Instagram7">
+  <meta name="twitter:title" content="Instagram Link Fixer for Discord &amp; Telegram | InstaFix Revived">
   <meta name="twitter:description" content="Paste a public Instagram post, Reel, or shortcode to generate a cleaner share link for Discord, Telegram, and other chat apps.">
-  <meta name="twitter:image" content="https://www.instagram7.com/site-preview.svg">
-  <meta name="twitter:image:alt" content="Instagram7.com — cleaner Instagram previews for chat apps">
-  <title>Instagram Link Fixer for Discord &amp; Telegram | Instagram7</title>
+  <meta name="twitter:image" content="__INSTAFIX_BASE_URL__/site-preview.svg">
+  <meta name="twitter:image:alt" content="InstaFix Revived — cleaner Instagram previews for chat apps">
+  <title>Instagram Link Fixer for Discord &amp; Telegram | InstaFix Revived</title>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
     "@graph": [
       {
         "@type": "WebSite",
-        "@id": "https://www.instagram7.com/#website",
-        "url": "https://www.instagram7.com/",
-        "name": "Instagram7.com",
-        "alternateName": ["InstaFix Revived", "Instagram7"],
+        "@id": "__INSTAFIX_BASE_URL__/#website",
+        "url": "__INSTAFIX_BASE_URL__/",
+        "name": "InstaFix Revived",
+        "alternateName": ["InstaFix Revived", "InstaFix Revived"],
         "description": "A public Instagram link fixer that generates cleaner share links for Discord, Telegram, and other chat apps.",
         "inLanguage": "en",
         "isAccessibleForFree": true,
-        "creator": {"@id": "https://www.instagram7.com/#creator"},
-        "publisher": {"@id": "https://www.instagram7.com/#creator"}
+        "creator": {"@id": "__INSTAFIX_BASE_URL__/#creator"},
+        "publisher": {"@id": "__INSTAFIX_BASE_URL__/#creator"}
       },
       {
         "@type": "WebApplication",
-        "@id": "https://www.instagram7.com/#app",
+        "@id": "__INSTAFIX_BASE_URL__/#app",
         "name": "InstaFix Revived",
-        "url": "https://www.instagram7.com/",
+        "url": "__INSTAFIX_BASE_URL__/",
         "applicationCategory": "UtilitiesApplication",
         "operatingSystem": "Any",
         "browserRequirements": "Requires a modern web browser",
         "isAccessibleForFree": true,
-        "description": "Convert Instagram post and Reel links to instagram7.com links for cleaner previews in Telegram, Discord, and other chat apps.",
+        "description": "Convert Instagram post and Reel links to __INSTAFIX_HOST__ links for cleaner previews in Telegram, Discord, and other chat apps.",
         "featureList": [
           "Instagram link conversion",
           "Instagram Reel preview support",
@@ -85,12 +85,12 @@ const homeHTML = `<!DOCTYPE html>
           "Playable video previews when available",
           "No third-party analytics on the homepage"
         ],
-        "author": {"@id": "https://www.instagram7.com/#creator"},
+        "author": {"@id": "__INSTAFIX_BASE_URL__/#creator"},
         "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"}
       },
       {
         "@type": "Person",
-        "@id": "https://www.instagram7.com/#creator",
+        "@id": "__INSTAFIX_BASE_URL__/#creator",
         "name": "Bl0ck154",
         "url": "https://github.com/Bl0ck154",
         "sameAs": [
@@ -102,22 +102,22 @@ const homeHTML = `<!DOCTYPE html>
       },
       {
         "@type": "FAQPage",
-        "@id": "https://www.instagram7.com/#faq",
+        "@id": "__INSTAFIX_BASE_URL__/#faq",
         "mainEntity": [
           {
             "@type": "Question",
             "name": "How do I fix an Instagram preview link?",
-            "acceptedAnswer": {"@type": "Answer", "text": "Add the number 7 after instagram in a public post or Reel URL, or paste the original link into the converter on Instagram7.com, then send the converted link in your messenger."}
+            "acceptedAnswer": {"@type": "Answer", "text": "Add the number 7 after instagram in a public post or Reel URL, or paste the original link into the converter on InstaFix Revived, then send the converted link in your messenger."}
           },
           {
             "@type": "Question",
-            "name": "Does Instagram7.com support Reels?",
+            "name": "Does InstaFix Revived support Reels?",
             "acceptedAnswer": {"@type": "Answer", "text": "Yes. Public Instagram Reels can generate cleaner preview metadata and playable video previews when the media is available."}
           },
           {
             "@type": "Question",
-            "name": "Is Instagram7.com affiliated with Instagram?",
-            "acceptedAnswer": {"@type": "Answer", "text": "No. Instagram7.com and InstaFix Revived are independent projects and are not affiliated with Instagram, Meta, or Instagram, Inc."}
+            "name": "Is InstaFix Revived affiliated with Instagram?",
+            "acceptedAnswer": {"@type": "Answer", "text": "No. InstaFix Revived and InstaFix Revived are independent projects and are not affiliated with Instagram, Meta, or Instagram, Inc."}
           }
         ]
       }
@@ -1329,7 +1329,7 @@ const homeHTML = `<!DOCTYPE html>
   <div class="container">
     <header>
       <div class="brand-group">
-        <a class="brand" href="/">Instagram7.com</a>
+        <a class="brand" href="/">InstaFix Revived</a>
       </div>
       <nav aria-label="Primary navigation">
         <a href="#how-to-use">How to Use</a>
@@ -1382,7 +1382,7 @@ const homeHTML = `<!DOCTYPE html>
                 <span id="copy-btn-text">Copy Link</span>
               </button>
             </div>
-            <div class="converter-hint" id="converter-hint" aria-live="polite">Paste a public Instagram or Instagram7 link, or enter its shortcode/ID.</div>
+            <div class="converter-hint" id="converter-hint" aria-live="polite">Paste a public Instagram link or a link from this instance, or enter its shortcode/ID.</div>
             <div class="demo-caption">
               <span>Live demo using our own Instagram Reel</span>
               <span class="demo-status" id="demo-status" aria-live="polite"></span>
@@ -1391,19 +1391,19 @@ const homeHTML = `<!DOCTYPE html>
         </div>
 
         <div class="preview-panel">
-          <div class="phone-frame" aria-label="Live chat preview Instagram7">
+          <div class="phone-frame" aria-label="Live chat preview InstaFix Revived">
             <div class="chat-mockup-wrapper">
               <div class="mockup-header">
                 <span class="chat-header-icon" aria-hidden="true">‹</span>
-                <span class="chat-avatar" aria-hidden="true">7</span>
+                <span class="chat-avatar" aria-hidden="true">IF</span>
                 <span class="chat-header-copy">
-                  <strong>Instagram7</strong>
+                  <strong>InstaFix Revived</strong>
                   <span class="chat-presence-indicator" aria-label="Available"></span>
                 </span>
                 <span class="chat-header-icon" aria-hidden="true">⋮</span>
               </div>
               <div class="chat-bubble">
-                <div class="chat-link chat-link-placeholder" id="mockup-link" contenteditable="true" role="textbox" aria-label="Editable Instagram7 link" spellcheck="false">https://www.instagram7.com/p/...</div>
+                <div class="chat-link chat-link-placeholder" id="mockup-link" contenteditable="true" role="textbox" aria-label="Editable InstaFix Revived link" spellcheck="false">__INSTAFIX_BASE_URL__/p/...</div>
                 <div class="embed-preview" id="embed-preview-container">
                   <!-- Dynamic Content -->
                   <div id="preview-dynamic-content">
@@ -1450,7 +1450,7 @@ const homeHTML = `<!DOCTYPE html>
           <div class="step-card">
             <div class="step-num">2</div>
             <h3 class="step-title">Change Domain</h3>
-            <p class="step-desc">Simply replace <code>instagram.com</code> with <code>instagram7.com</code> in the URL (or paste it above).</p>
+            <p class="step-desc">Paste the original link into the converter above to create a URL on this instance.</p>
           </div>
           <div class="step-card">
             <div class="step-num">3</div>
@@ -1509,7 +1509,7 @@ const homeHTML = `<!DOCTYPE html>
       <section id="donate" class="donations-section">
         <h2 class="donations-title">Support the Project</h2>
         <p class="donations-desc">
-          InstaFix Revived powers this free, ad-free public service from a personal server. Traffic and video proxy bandwidth still require active maintenance and hosting expenses. If Instagram7.com is useful to you, consider supporting its uptime!
+          Maintaining this open-source project takes time. Hosting and bandwidth costs depend on each deployment. If the project is useful to you, consider supporting its maintenance!
         </p>
         <div class="donations-grid">
           <a class="donate-card paypal" href="https://paypal.me/IlliaZabolotskyi" target="_blank" rel="noopener noreferrer">
@@ -1570,11 +1570,11 @@ const homeHTML = `<!DOCTYPE html>
 
       <section class="seo-section" aria-labelledby="seo-title">
         <h2 class="section-title" id="seo-title">Frequently Asked Questions</h2>
-        <p class="seo-intro">Instagram7.com is the public instance of <a href="https://github.com/Bl0ck154/InstaFix-Revived" target="_blank" rel="noopener noreferrer">InstaFix Revived</a>, a maintained lightweight open-source project that helps public Instagram posts and Reels generate cleaner OpenGraph and Twitter Card previews. Add 7 after instagram in the URL and share it in Telegram, Discord, Slack, social feeds, or any app that reads web metadata.</p>
-        <p class="seo-intro"><strong>Practical guides:</strong> <a href="/how-instagram7-works">see how Instagram7 works</a>, browse the <a href="/guides">Instagram preview guide hub</a>, <a href="/guides/instagram-link-preview-fixer">fix Instagram link previews</a>, improve <a href="/guides/instagram-reels-preview">Instagram Reels previews</a>, troubleshoot previews in <a href="/guides/telegram-instagram-preview">Telegram</a>, or use the <a href="/guides/discord-instagram-embed">Instagram Discord embed generator</a>.</p>
+        <p class="seo-intro">This page runs <a href="https://github.com/Bl0ck154/InstaFix-Revived" target="_blank" rel="noopener noreferrer">InstaFix Revived</a>, a maintained lightweight open-source project that helps public Instagram posts and Reels generate cleaner OpenGraph and Twitter Card previews. Convert a public Instagram URL on this instance and share it in Telegram, Discord, Slack, social feeds, or any app that reads web metadata.</p>
+        <p class="seo-intro"><strong>Practical guides:</strong> <a href="/how-instagram7-works">see how InstaFix Revived works</a>, browse the <a href="/guides">Instagram preview guide hub</a>, <a href="/guides/instagram-link-preview-fixer">fix Instagram link previews</a>, improve <a href="/guides/instagram-reels-preview">Instagram Reels previews</a>, troubleshoot previews in <a href="/guides/telegram-instagram-preview">Telegram</a>, or use the <a href="/guides/discord-instagram-embed">Instagram Discord embed generator</a>.</p>
         <div class="faq-list">
           <article class="faq-item">
-            <h3>How does Instagram7.com fix Instagram previews?</h3>
+            <h3>How does InstaFix Revived fix Instagram previews?</h3>
             <p>It reads public post metadata and serves preview tags for author names, captions, thumbnails, and playable video streams when the media is available.</p>
           </article>
           <article class="faq-item">
@@ -1583,7 +1583,7 @@ const homeHTML = `<!DOCTYPE html>
           </article>
           <article class="faq-item">
             <h3>Is this an official Instagram service?</h3>
-            <p>No. Instagram7.com is an independent open-source project maintained by Bl0ck154 and is not affiliated with Instagram, Meta, or Instagram, Inc.</p>
+            <p>No. InstaFix Revived is an independent open-source project maintained by Bl0ck154 and is not affiliated with Instagram, Meta, or Instagram, Inc.</p>
           </article>
         </div>
       </section>
@@ -1620,7 +1620,7 @@ const homeHTML = `<!DOCTYPE html>
       const DEMO_REEL_ID = 'Dbidjf_C4nf';
       const DEMO_VIDEO_URL = '/assets/demo/instagram7-test-reel.mp4';
       const DEMO_POSTER_URL = '/assets/demo/instagram7-test-reel-poster.webp';
-      const DEMO_SESSION_KEY = 'instagram7.live-demo.seen.v2';
+      const DEMO_SESSION_KEY = 'instafix-revived.live-demo.seen.v2';
       let previewTimer = null;
       let previewAbortController = null;
       let lastPreviewKey = '';
@@ -1645,8 +1645,8 @@ const homeHTML = `<!DOCTYPE html>
           postId: postId,
           rawInput: Boolean(rawInput),
           inputDisplay: rawInput ? postId : 'www.instagram.com/' + canonicalKind + '/' + postId + '/',
-          display: 'www.instagram7.com/' + canonicalKind + '/' + postId + '/',
-          full: 'https://www.instagram7.com/' + canonicalKind + '/' + postId + '/',
+          display: '__INSTAFIX_HOST__/' + canonicalKind + '/' + postId + '/',
+          full: '__INSTAFIX_BASE_URL__/' + canonicalKind + '/' + postId + '/',
           preferVideo: /^(reel|reels|tv)$/i.test(canonicalKind)
         };
       }
@@ -1669,11 +1669,11 @@ const homeHTML = `<!DOCTYPE html>
         } catch (_) {
           return {valid: false, reason: 'Paste a publication URL or an ID such as DaJlro2MFT6 — not a profile name or sentence.'};
         }
-        const host = parsed.hostname.toLowerCase();
+        const host = parsed.host.toLowerCase();
         const instagramHost = host === 'instagram.com' || host === 'www.instagram.com' || host === 'm.instagram.com';
-        const instagram7Host = host === 'instagram7.com' || host === 'www.instagram7.com';
-        if (!instagramHost && !instagram7Host) {
-          return {valid: false, reason: 'Use an instagram.com or instagram7.com publication link. Other domains are not accepted.'};
+        const localHost = host === '__INSTAFIX_HOST__';
+        if (!instagramHost && !localHost) {
+          return {valid: false, reason: 'Use an Instagram publication link or a link from this instance.'};
         }
         const match = parsed.pathname.match(publicationPathRe);
         if (!match) {
@@ -1735,7 +1735,7 @@ const homeHTML = `<!DOCTYPE html>
         previewAbortController = null;
         lastPreviewKey = '';
         convertedFullURL = '';
-        mockupLink.textContent = 'https://www.instagram7.com/p/...';
+        mockupLink.textContent = '__INSTAFIX_BASE_URL__/p/...';
         mockupLink.classList.add('chat-link-placeholder');
         previewAuthor.textContent = '@instagram_user';
         previewCaption.textContent = 'Paste an Instagram URL above to generate a real converted link and media preview.';
@@ -1755,7 +1755,7 @@ const homeHTML = `<!DOCTYPE html>
         copyBtn.classList.remove('copied');
         copyBtnText.textContent = 'Copy Link';
         inputEl.classList.toggle('invalid', type === 'error');
-        setHint(message || 'Paste a public Instagram or Instagram7 link, or enter its shortcode/ID.', type);
+        setHint(message || 'Paste a public Instagram or InstaFix Revived link, or enter its shortcode/ID.', type);
         resetPreview();
       }
 
@@ -1807,7 +1807,7 @@ const homeHTML = `<!DOCTYPE html>
 
       function renderOwnedDemoVideo() {
         previewAuthor.textContent = '@insta7_com';
-        previewCaption.textContent = 'Add 7. Share better. Live demo using our own Instagram Reel.';
+        previewCaption.textContent = 'Convert link. Share better. Live demo using our own Instagram Reel.';
         renderVideo(DEMO_REEL_ID, DEMO_VIDEO_URL, DEMO_POSTER_URL, function() {
           if (demoActive && !demoUserHasTakenOver) demoStatus.textContent = 'Demo preview ready';
         }, function() {
@@ -1889,7 +1889,7 @@ const homeHTML = `<!DOCTYPE html>
         }
         const parsed = parseInstagramPublication(normalized);
         if (parsed.empty) {
-          resetConverter('Paste a public Instagram or Instagram7 link, or enter its shortcode/ID.');
+          resetConverter('Paste a public Instagram or InstaFix Revived link, or enter its shortcode/ID.');
           return;
         }
         if (parsed.incomplete) {
@@ -1946,9 +1946,9 @@ const homeHTML = `<!DOCTYPE html>
 
       function addSevenAndConvertDemo() {
         if (!demoActive || demoUserHasTakenOver) return;
-        inputEl.value = DEMO_REEL_URL.replace('instagram.com', 'instagram7.com');
+        inputEl.value = '__INSTAFIX_BASE_URL__' + new URL(DEMO_REEL_URL).pathname;
         inputEl.classList.add('demo-seven-added');
-        demoStatus.textContent = 'Adding 7';
+        demoStatus.textContent = 'Converting link';
         scheduleDemoStep(function() {
           inputEl.classList.remove('demo-seven-added');
           demoStatus.textContent = 'Loading real preview';
@@ -2028,7 +2028,7 @@ const homeHTML = `<!DOCTYPE html>
           convertUrl();
           return;
         }
-        resetConverter('Edit the mock link to a valid instagram7.com post or Reel URL.', 'error');
+        resetConverter('Edit the mock link to a valid URL for this instance.', 'error');
       }
 
       mockupLink.addEventListener('keydown', function(event) {
@@ -2085,5 +2085,5 @@ const homeHTML = `<!DOCTYPE html>
 </html>`
 
 func Home(wr io.Writer) {
-	wr.Write(S2B(homeHTML))
+	wr.Write(S2B(renderSiteMarkup(homeHTML)))
 }

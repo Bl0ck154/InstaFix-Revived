@@ -49,7 +49,7 @@ func EmbedStateless(w http.ResponseWriter, r *http.Request) {
 
 	viewsData.URL = instagramOriginURL(r.URL.Path, postID)
 	viewsData.CanonicalURL = viewsData.URL
-	viewsData.Site = "Instagram7"
+	viewsData.Site = "InstaFix Revived"
 	if !utils.IsBot(userAgent) {
 		redirectStatelessNoStore(w, r, viewsData.URL)
 		return

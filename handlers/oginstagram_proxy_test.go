@@ -63,7 +63,7 @@ func TestRewriteOGInstagramHTML(t *testing.T) {
 	}
 	for _, want := range []string{
 		`<title>Instagram preview</title>`,
-		`content="Instagram7"`,
+		`content="InstaFix Revived"`,
 		`content="Instagram preview"`,
 		`content='Instagram preview'`,
 		`content="Real Reel caption &amp; details"`,

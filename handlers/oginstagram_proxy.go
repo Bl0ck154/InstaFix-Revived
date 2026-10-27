@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"instafix/observability"
+	"instafix/views"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -489,7 +490,7 @@ func hasMetaProperty(body []byte, property string) bool {
 func rewriteOGInstagramHTML(body, upstreamBase, publicBase string, trusted ...fallbackPreviewText) string {
 	previewText := deriveFallbackPreviewText(body, trusted...)
 	body = rewriteOGInstagramURL(body, upstreamBase, publicBase)
-	body = ogInstagramBrandPattern.ReplaceAllString(body, "Instagram7")
+	body = ogInstagramBrandPattern.ReplaceAllString(body, "InstaFix Revived")
 	body = strings.ReplaceAll(body, "oginstagram.com", strings.TrimPrefix(strings.TrimPrefix(publicBase, "https://"), "http://"))
 	body = instagram7FixedPreviewBrandPattern.ReplaceAllString(body, "Instagram preview")
 	body = normalizeFallbackPreviewMetadata(body, previewText)
@@ -596,7 +597,7 @@ func normalizeFallbackPreviewMetadata(body string, text fallbackPreviewText) str
 	body = metaTagPattern.ReplaceAllStringFunc(body, func(tag string) string {
 		switch {
 		case ogSiteNameMetaPattern.MatchString(tag):
-			return replaceMetaContent(tag, "Instagram7")
+			return replaceMetaContent(tag, "InstaFix Revived")
 		case ogTitleMetaPattern.MatchString(tag), twitterTitleMetaPattern.MatchString(tag):
 			return replaceMetaContent(tag, escapedTitle)
 		case ogDescriptionMetaPattern.MatchString(tag):
@@ -682,6 +683,7 @@ func requestPublicBaseURL(r *http.Request) string {
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
+	if configured := views.ConfiguredPublicBaseURL(); configured != "" { return configured }
 	return scheme + "://" + r.Host
 }
 

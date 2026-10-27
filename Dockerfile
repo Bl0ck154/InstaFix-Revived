@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 ARG BUILDPLATFORM=linux/amd64
-FROM --platform=$BUILDPLATFORM golang:1.23 as app-builder
+FROM --platform=$BUILDPLATFORM golang:1.27.3 as app-builder
 
 WORKDIR /app
 

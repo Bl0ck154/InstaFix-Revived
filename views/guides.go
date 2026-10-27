@@ -3,6 +3,7 @@ package views
 import (
 	"html/template"
 	"io"
+	"strings"
 )
 
 type guidePage struct {
@@ -28,10 +29,10 @@ var guidePages = map[string]guidePage{
 			<h2>The quick method</h2>
 			<ol>
 				<li>Copy a public Instagram post or Reel URL.</li>
-				<li>Replace <code>instagram.com</code> with <code>instagram7.com</code>, or paste the original URL into the converter on the homepage.</li>
+				<li>Paste the Instagram URL into the converter on this instance; it will generate a link with your own hostname.</li>
 				<li>Send the converted link as a new message so the chat app requests a fresh preview.</li>
 			</ol>
-			<p>Instagram7 reads public metadata and produces a compact preview page for compatible clients. It can provide an author name, caption, thumbnail, and playable media when the source makes those fields available. Private, deleted, age-restricted, or region-restricted posts may still be unavailable.</p>
+			<p>InstaFix Revived reads public metadata and produces a compact preview page for compatible clients. It can provide an author name, caption, thumbnail, and playable media when the source makes those fields available. Private, deleted, age-restricted, or region-restricted posts may still be unavailable.</p>
 			<h2>Why a preview can stay stale</h2>
 			<p>Telegram, Discord, Slack, and other services cache preview results. Editing an old message may reuse the cached card. Sending the link again, without tracking parameters, is usually the cleanest test. A different post should also be used when you need to distinguish a cache problem from a source-media problem.</p>
 			<h2>Safe expectations</h2>
@@ -49,12 +50,12 @@ var guidePages = map[string]guidePage{
 			<h2>Convert a Reel link</h2>
 			<ol>
 				<li>Open the public Reel and use Instagram's share menu to copy its URL.</li>
-				<li>Paste it into Instagram7, or change the hostname from <code>instagram.com</code> to <code>instagram7.com</code>.</li>
+				<li>Paste it into the converter on this instance to generate a shareable link.</li>
 				<li>Share the new URL in the target chat and wait for its preview bot to finish.</li>
 			</ol>
 			<p>The converter recognizes <code>/reel/</code>, <code>/reels/</code>, and legacy <code>/tv/</code> publication paths. Profile pages, Explore pages, arbitrary text, and look-alike domains are rejected because they are not publication URLs.</p>
 			<h2>Thumbnail versus playable video</h2>
-			<p>Different clients support different cards. One app may play the Reel in place, while another deliberately shows only the thumbnail and opens the original link. Instagram7 supplies the strongest metadata it has, but the receiving client makes the final rendering decision.</p>
+			<p>Different clients support different cards. One app may play the Reel in place, while another deliberately shows only the thumbnail and opens the original link. InstaFix Revived supplies the strongest metadata it has, but the receiving client makes the final rendering decision.</p>
 			<h2>When a Reel is unavailable</h2>
 			<p>Check that the Reel is public and still opens in a logged-out browser. If it is restricted or Instagram temporarily withholds its media URL, retrying many times will not make it public. Open the original post instead and respect the creator's access settings.</p>
 		`),
@@ -66,18 +67,18 @@ var guidePages = map[string]guidePage{
 		Heading:     "Fix Instagram previews in Telegram",
 		Eyebrow:     "Telegram guide",
 		Body: template.HTML(`
-			<p>Telegram creates link cards with its own crawler. That crawler can see a different response from the one shown in your browser, and it can keep a cached result after the source changes. A converted Instagram7 link gives Telegram a small preview-focused page instead of asking it to interpret the full Instagram experience.</p>
+			<p>Telegram creates link cards with its own crawler. That crawler can see a different response from the one shown in your browser, and it can keep a cached result after the source changes. A converted InstaFix Revived link gives Telegram a small preview-focused page instead of asking it to interpret the full Instagram experience.</p>
 			<h2>Three steps</h2>
 			<ol>
 				<li>Copy the URL of a public Instagram post or Reel.</li>
-				<li>Use the Instagram7 converter to create a clean URL.</li>
+				<li>Use the InstaFix Revived converter to create a clean URL.</li>
 				<li>Paste the new URL into a fresh Telegram message and wait for the card before sending.</li>
 			</ol>
 			<p>For Reels, Telegram may show a playable vertical video when the media stream is currently available. For carousels, it may select one image even when the metadata includes more than one. These are Telegram rendering choices rather than converter errors.</p>
 			<h2>If Telegram shows an old preview</h2>
-			<p>First test in a new message instead of repeatedly editing the old one. Remove unrelated tracking parameters and make sure the hostname is exactly <code>instagram7.com</code>. If another public post works, the first result is probably cached or source-specific.</p>
+			<p>First test in a new message instead of repeatedly editing the old one. Remove unrelated tracking parameters and make sure the hostname matches the one used by your instance. If another public post works, the first result is probably cached or source-specific.</p>
 			<h2>Privacy and access</h2>
-			<p>Instagram7 processes public publication URLs. It does not make private accounts public, and people who open a preview are redirected to the original Instagram publication for the full context.</p>
+			<p>InstaFix Revived processes public publication URLs. It does not make private accounts public, and people who open a preview are redirected to the original Instagram publication for the full context.</p>
 		`),
 	},
 	"discord-instagram-embed": {
@@ -88,7 +89,7 @@ var guidePages = map[string]guidePage{
 		Eyebrow:     "Free browser tool",
 		IsGenerator: true,
 		Body: template.HTML(`
-			<p>The generator above runs in your browser and turns a public Instagram publication URL or shortcode into an Instagram7 share link. Discord then requests a compact page with Open Graph and Twitter Card fields while the original Instagram publication remains the destination.</p>
+			<p>The generator above runs in your browser and turns a public Instagram publication URL or shortcode into an InstaFix Revived share link. Discord then requests a compact page with Open Graph and Twitter Card fields while the original Instagram publication remains the destination.</p>
 			<h2>Generate and share the link</h2>
 			<ol>
 				<li>Paste a public Instagram post or Reel URL. If you only have its shortcode, choose Post or Reel.</li>
@@ -111,7 +112,7 @@ var guideIndexPage = guidePage{
 	Title:       "Instagram Preview Guides and Embed Tools",
 	Description: "Practical Instagram link fixer guides and free tools for cleaner post and Reel previews in Discord, Telegram, and other chat apps.",
 	Heading:     "Instagram preview guides and tools",
-	Eyebrow:     "Instagram7 knowledge base",
+	Eyebrow:     "InstaFix Revived knowledge base",
 	IsIndex:     true,
 	Body: template.HTML(`
 		<p>Start with the converter on the homepage, or choose the guide that matches the app and publication type you are troubleshooting. Every guide is written for public Instagram publications and documents the limits imposed by source availability and each chat client's cache.</p>
@@ -123,7 +124,7 @@ var guideIndexPage = guidePage{
 			<a class="guide-card" href="/guides/discord-instagram-embed"><span>Discord</span><strong>Discord embed generator</strong><small>Generate a clean share link and diagnose missing embeds.</small></a>
 		</div>
 		<h2>Before troubleshooting</h2>
-		<p>Verify that the original publication is public and still opens. Use a fresh chat message and a second known-public publication to distinguish a cached client result from a source-specific failure. Instagram7 cannot make private, deleted, age-restricted, or region-restricted media public.</p>
+		<p>Verify that the original publication is public and still opens. Use a fresh chat message and a second known-public publication to distinguish a cached client result from a source-specific failure. InstaFix Revived cannot make private, deleted, age-restricted, or region-restricted media public.</p>
 	`),
 }
 
@@ -134,20 +135,20 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="{{.Description}}">
   <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large">
-  <link rel="canonical" href="https://www.instagram7.com/guides{{if .Slug}}/{{.Slug}}{{end}}">
-  <link rel="alternate" hreflang="en" href="https://www.instagram7.com/guides{{if .Slug}}/{{.Slug}}{{end}}">
-  <link rel="alternate" hreflang="x-default" href="https://www.instagram7.com/guides{{if .Slug}}/{{.Slug}}{{end}}">
+  <link rel="canonical" href="__INSTAFIX_BASE_URL__/guides{{if .Slug}}/{{.Slug}}{{end}}">
+  <link rel="alternate" hreflang="en" href="__INSTAFIX_BASE_URL__/guides{{if .Slug}}/{{.Slug}}{{end}}">
+  <link rel="alternate" hreflang="x-default" href="__INSTAFIX_BASE_URL__/guides{{if .Slug}}/{{.Slug}}{{end}}">
   <meta property="og:type" content="article">
-  <meta property="og:site_name" content="Instagram7">
+  <meta property="og:site_name" content="InstaFix Revived">
   <meta property="og:title" content="{{.Title}}">
   <meta property="og:description" content="{{.Description}}">
-  <meta property="og:url" content="https://www.instagram7.com/guides{{if .Slug}}/{{.Slug}}{{end}}">
-  <meta property="og:image" content="https://www.instagram7.com/site-preview.svg">
+  <meta property="og:url" content="__INSTAFIX_BASE_URL__/guides{{if .Slug}}/{{.Slug}}{{end}}">
+  <meta property="og:image" content="__INSTAFIX_BASE_URL__/site-preview.svg">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{{.Title}}">
   <meta name="twitter:description" content="{{.Description}}">
-  <meta name="twitter:image" content="https://www.instagram7.com/site-preview.svg">
-  <title>{{.Title}} | Instagram7</title>
+  <meta name="twitter:image" content="__INSTAFIX_BASE_URL__/site-preview.svg">
+  <title>{{.Title}} | InstaFix Revived</title>
   <script type="application/ld+json">
   {
     "@context": "https://schema.org",
@@ -158,7 +159,7 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
     "dateModified": "2026-07-29",
     "inLanguage": "en",
     "isAccessibleForFree": true,
-    "mainEntityOfPage": "https://www.instagram7.com/guides{{if .Slug}}/{{.Slug}}{{end}}",
+    "mainEntityOfPage": "__INSTAFIX_BASE_URL__/guides{{if .Slug}}/{{.Slug}}{{end}}",
     "author": {"@type": "Person", "name": "Bl0ck154", "url": "https://github.com/Bl0ck154"},
     "publisher": {"@type": "Person", "name": "Bl0ck154", "url": "https://github.com/Bl0ck154"}
   }
@@ -258,7 +259,7 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
 <body>
   <div class="container">
     <header>
-      <div class="brand-group"><a class="brand" href="/">Instagram7.com</a></div>
+      <div class="brand-group"><a class="brand" href="/">InstaFix Revived</a></div>
       <nav aria-label="Primary navigation">
         <a href="/">Converter</a>
         <a href="/guides">Guides</a>
@@ -301,7 +302,7 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
         <div class="cta">
           <strong>Ready to try it?</strong><br>
           Convert a real public Instagram publication URL on the homepage.<br>
-          <a href="/">Open the Instagram7 converter</a>
+          <a href="/">Open the InstaFix Revived converter</a>
         </div>
         {{end}}
       </article>
@@ -313,7 +314,7 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
         <a href="/guides/discord-instagram-embed">Discord</a>
       </nav>
     </main>
-    <footer>Instagram7 is an independent open-source service and is not affiliated with Instagram or Meta.</footer>
+    <footer>InstaFix Revived is an independent open-source service and is not affiliated with Instagram or Meta.</footer>
   </div>
   {{if .IsGenerator}}
   <script>
@@ -335,7 +336,7 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
         const urlValue = /^https?:\/\//i.test(value) ? value : 'https://' + value;
         const url = new URL(urlValue);
         const host = url.hostname.toLowerCase().replace(/^www\./, '').replace(/^m\./, '');
-        if (host !== 'instagram.com' && host !== 'instagram7.com') return null;
+        if (host !== 'instagram.com' && host !== '__INSTAFIX_HOST__') return null;
         match = url.pathname.match(pathPattern);
       } catch (_) {
         match = null;
@@ -356,7 +357,7 @@ var guideTemplate = template.Must(template.New("guide").Parse(`<!DOCTYPE html>
         status.textContent = 'Enter a public Instagram publication URL or a valid shortcode/ID.';
         return;
       }
-      output.value = 'https://www.instagram7.com/' + publication.kind + '/' + publication.id + '/';
+      output.value = '__INSTAFIX_BASE_URL__/' + publication.kind + '/' + publication.id + '/';
       result.classList.add('active');
       status.className = 'generator-status';
       status.textContent = '';
@@ -384,9 +385,15 @@ func Guide(slug string, wr io.Writer) bool {
 	if !ok {
 		return false
 	}
-	return guideTemplate.Execute(wr, page) == nil
+	var rendered strings.Builder
+	if err := guideTemplate.Execute(&rendered, page); err != nil { return false }
+	_, err := io.WriteString(wr, renderSiteMarkup(rendered.String()))
+	return err == nil
 }
 
 func GuideIndex(wr io.Writer) bool {
-	return guideTemplate.Execute(wr, guideIndexPage) == nil
+	var rendered strings.Builder
+	if err := guideTemplate.Execute(&rendered, guideIndexPage); err != nil { return false }
+	_, err := io.WriteString(wr, renderSiteMarkup(rendered.String()))
+	return err == nil
 }
