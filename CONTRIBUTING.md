@@ -26,7 +26,7 @@ python -m unittest discover -s auth-helper -p 'test_*.py'
 Before submitting public changes, search for accidental private data:
 
 ```sh
-rg -n "sessionid|csrftoken|ds_user_id|TELEGRAM_|212\.227|instagram7\.com" .
+rg -n "sessionid|csrftoken|ds_user_id|TELEGRAM_|212\.227|instagram[0-9]+\.com" .
 ```
 
 Cookie field names in documentation are fine; real values are never fine.
