@@ -186,10 +186,15 @@ var howInstagram7WorksTemplate = template.Must(template.New("how-instagram7-work
 </html>`))
 
 func renderHowInstagram7Works(wr io.Writer, video demoVideo) error {
-	return howInstagram7WorksTemplate.Execute(wr, howInstagram7WorksPage{
+	var rendered strings.Builder
+	if err := howInstagram7WorksTemplate.Execute(&rendered, howInstagram7WorksPage{
 		Video:          video,
 		StructuredData: howInstagram7WorksStructuredData(video),
-	})
+	}); err != nil {
+		return err
+	}
+	_, err := io.WriteString(wr, renderSiteMarkup(rendered.String()))
+	return err
 }
 
 func HowInstagram7Works(wr io.Writer) bool {
