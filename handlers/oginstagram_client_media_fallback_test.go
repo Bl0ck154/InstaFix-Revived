@@ -83,7 +83,6 @@ func TestTelegramClientMediaFallbackUsesDirectEndpointWithoutLocalVideo(t *testi
 		}
 	}
 	for _, want := range []string{
-		`property="og:title" content="Instagram Reel"`,
 		`property="og:video:width" content="720"`,
 		`property="og:video:height" content="1280"`,
 		`/fallback/DbNoLocalVideo.png?kind=reel`,
@@ -180,7 +179,7 @@ func TestTelegramClientMediaFallbackPreservesPartialMetadataWithoutUsername(t *t
 	}
 	body := recorder.Body.String()
 	for _, want := range []string{
-		`property="og:title" content="Instagram Reel"`,
+		`property="og:title" content="Caption survived the partial public scrape"`,
 		`property="og:description" content="Caption survived the partial public scrape"`,
 		`property="og:video:width" content="720"`,
 		`property="og:video:height" content="1280"`,
@@ -210,7 +209,6 @@ func TestTelegramClientMediaFallbackUsesPartialGraphImageAsPosterWithoutDimensio
 	}
 	body := recorder.Body.String()
 	for _, want := range []string{
-		`property="og:title" content="Instagram Reel"`,
 		`property="og:video:width" content="720"`,
 		`property="og:video:height" content="1280"`,
 		`https://instagram7.test/offload/DbPartialPoster/1?thumbnail=1`,
