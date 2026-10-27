@@ -1807,7 +1807,7 @@ const homeHTML = `<!DOCTYPE html>
 
       function renderOwnedDemoVideo() {
         previewAuthor.textContent = '@insta7_com';
-        previewCaption.textContent = 'Add 7. Share better. Live demo using our own Instagram Reel.';
+        previewCaption.textContent = 'Convert link. Share better. Live demo using our own Instagram Reel.';
         renderVideo(DEMO_REEL_ID, DEMO_VIDEO_URL, DEMO_POSTER_URL, function() {
           if (demoActive && !demoUserHasTakenOver) demoStatus.textContent = 'Demo preview ready';
         }, function() {
