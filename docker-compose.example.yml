@@ -3,10 +3,11 @@ services:
     build: .
     image: instafix-revived:local
     restart: unless-stopped
+    # Bind locally; use an HTTPS reverse proxy to expose your own hostname.
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
-      # Recommended current runtime used by the public instance.
+      # Default self-hosted stateless preview mode.
       INSTAFIX_EXPERIMENT_MODE: stateless_cloudrun
       INSTAFIX_EXPERIMENT_LABEL: self-hosted
       INSTAFIX_PUBLIC_VIDEO_REFRESH_DIRECT: "true"
@@ -19,9 +20,12 @@ services:
       # DAILY_REPORT_HOUR_UTC: "0"
       # REPORT_ADMIN_TOKEN: ""
 
-  # Optional authenticated fallback helper for the legacy runtime. Keep it
-  # local/private because it can read Instagram session cookies.
+  # Optional legacy authenticated fallback. Not started by default.
+  # Enable explicitly with: docker compose -f docker-compose.example.yml --profile auth-helper up -d
+  # Create ./secrets/instagram_cookie yourself before enabling this profile.
+  # Never expose the helper publicly; it can access session cookies.
   auth-helper:
+    profiles: ["auth-helper"]
     build: ./auth-helper
     image: instafix-auth-helper:local
     restart: unless-stopped
