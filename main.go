@@ -389,7 +389,7 @@ func main() {
   <text x="305" y="190" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="62" font-weight="800" fill="#2c241e">InstaFix Revived</text>
   <text x="305" y="252" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="32" font-weight="600" fill="#6e645a">Cleaner Instagram previews for chat apps</text>
   <text x="135" y="350" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="42" font-weight="800" fill="#2c241e">Fix Instagram posts and Reels</text>
-  <text x="135" y="405" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" fill="#6e645a">Replace instagram.com with instagram7.com for cleaner embeds and playable video previews when available.</text>
+  <text x="135" y="405" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="28" fill="#6e645a">Convert public Instagram URLs to shareable links for cleaner previews and playable video where supported.</text>
   <rect x="135" y="452" width="360" height="50" rx="25" fill="#4f46e5"/>
   <text x="165" y="487" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="24" font-weight="700" fill="white">Open-source by Bl0ck154</text>
 </svg>`))
