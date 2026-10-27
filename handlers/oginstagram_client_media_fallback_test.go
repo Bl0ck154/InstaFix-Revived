@@ -314,3 +314,16 @@ func TestInlineVideoOversizedUsesDecimalByteLimit(t *testing.T) {
 		t.Fatal("31,434,927-byte Telegram video must exceed the 30,000,000-byte preview limit")
 	}
 }
+
+func TestPreviewTitleFromRealCaption(t *testing.T) {
+	if got := previewTitleFromDescription("  A genuine caption about a Reel  \nmore information"); got != "A genuine caption about a Reel" {
+		t.Fatalf("caption title = %q", got)
+	}
+	if got := previewTitleFromDescription("  "); got != "" {
+		t.Fatalf("blank caption must not produce made-up title: %q", got)
+	}
+	title := previewTitleFromDescription(strings.Repeat("я", 140))
+	if got := len([]rune(title)); got > 96 || !strings.HasSuffix(title, "…") {
+		t.Fatalf("truncated unicode title is invalid: %q (%d runes)", title, got)
+	}
+}
