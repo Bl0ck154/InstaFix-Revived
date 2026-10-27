@@ -4,25 +4,21 @@
 
 **InstaFix Revived** is a maintained, lightweight continuation of [Wikidepia/InstaFix](https://github.com/Wikidepia/InstaFix). It fixes the boring/broken Instagram embeds you often get in Telegram, Discord, Slack, WhatsApp, and other chat apps by serving cleaner OpenGraph/Twitter-card preview pages.
 
-## Try it now
+## A note on domains and trademarks
 
-Use the public instance:
+A public deployment of this project was taken offline after a trademark complaint about its domain name. The source code is still available here.
 
-### [instagram7.com](https://www.instagram7.com/)
+It's an annoying risk with unofficial tools: a registrar can put a domain on hold while a trademark complaint is being handled, and the whole site can disappear overnight. Being open source or putting a "not affiliated" disclaimer on the page doesn't necessarily protect the domain name itself.
 
-Just add **`7`** after `instagram` in the URL, then send the link in your messenger.
+If you're running your own instance, pick a neutral domain name that doesn't use someone else's trademark. Keep a backup of your DNS and deployment settings, too. Paying for a domain doesn't guarantee it'll stay reachable.
 
-example:
+## Run your own instance
 
-```text
-https://www.instagram7.com/reel/POST_ID/
-```
-
-You will see a preview in your messenger, don't need to open the instagram link.
+The hosted demo is currently unavailable. You can deploy InstaFix Revived on a domain you control. Start with [`docker-compose.example.yml`](docker-compose.example.yml) and [`.env.example`](.env.example), then share preview links from your own instance.
 
 ## Preview
 
-Add `7` to the Instagram URL and your chat app gets a cleaner embed:
+Use a preview link from your own InstaFix Revived instance to get a cleaner embed in a chat app:
 
 <img src=".github/assets/orig_embed.jpg" width="450" alt="Fixed Instagram embed preview">
 
@@ -50,7 +46,7 @@ See [Telegram Reel previews: current design and the 20 MiB boundary](docs/telegr
 
 ## Optional Cloudflare edge
 
-InstaFix does not require a Cloudflare Worker. A normal Caddy/Nginx/reverse-proxy deployment is enough. Self-hosters who want an edge layer similar in purpose to the public instance can start from the generic [Cloudflare Worker example](examples/cloudflare-worker/README.md). It contains no `instagram7.com` production routes, diagnostics, account IDs, or secrets.
+InstaFix does not require a Cloudflare Worker. A normal Caddy/Nginx/reverse-proxy deployment is enough. Self-hosters who want an edge layer similar in purpose to the public instance can start from the generic [Cloudflare Worker example](examples/cloudflare-worker/README.md). It contains no production-specific routes, diagnostics, account IDs, or secrets.
 
 ## Why this exists
 
@@ -60,7 +56,7 @@ InstaFix Revived sits between the chat app and Instagram, reads public metadata,
 
 ## Support the project
 
-If you use the public instance at [instagram7.com](https://www.instagram7.com/) or self-host this project, a star on GitHub helps a lot.
+If you self-host this project or find the code useful, a star on GitHub helps a lot.
 
 You can also support the maintainer here:
 
