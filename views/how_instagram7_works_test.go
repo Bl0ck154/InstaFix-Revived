@@ -13,11 +13,11 @@ func TestHowInstagram7WorksPageUsesLiveExample(t *testing.T) {
 	}
 	html := out.String()
 	for _, check := range []string{
-		`rel="canonical" href="https://www.instagram7.com/how-instagram7-works"`,
-		`Fix Instagram Reel previews by adding one number.`,
+		`rel="canonical" href="http://localhost:3000/how-instagram7-works"`,
+		`Fix Instagram Reel previews on your own domain.`,
 		`poster="/assets/demo/instagram7-test-reel-poster.webp"`,
 		`src="/assets/demo/instagram7-test-reel.mp4"`,
-		`Add 7 after instagram`,
+		`Convert the Instagram URL`,
 		`Frequently asked questions`,
 		`href="/#converter"`,
 		`data-video-ready="false"`,
@@ -35,14 +35,14 @@ func TestHowInstagram7WorksPageUsesLiveExample(t *testing.T) {
 
 func TestHowInstagram7WorksRendersCompleteFutureVideo(t *testing.T) {
 	video := demoVideo{
-		Name:          "Instagram7 walkthrough",
-		Description:   "See the complete Instagram7 sharing workflow.",
-		PosterURL:     "https://www.instagram7.com/assets/video/walkthrough-poster.webp",
-		MP4URL:        "https://www.instagram7.com/assets/video/walkthrough.mp4",
-		WebMURL:       "https://www.instagram7.com/assets/video/walkthrough.webm",
-		CaptionsURL:   "https://www.instagram7.com/assets/video/walkthrough.en.vtt",
-		TranscriptURL: "https://www.instagram7.com/how-instagram7-works#transcript",
-		Transcript:    "Copy the Reel link, add 7, and send it.",
+		Name:          "InstaFix Revived walkthrough",
+		Description:   "See the complete InstaFix Revived sharing workflow.",
+		PosterURL:     "http://localhost:3000/assets/video/walkthrough-poster.webp",
+		MP4URL:        "http://localhost:3000/assets/video/walkthrough.mp4",
+		WebMURL:       "http://localhost:3000/assets/video/walkthrough.webm",
+		CaptionsURL:   "http://localhost:3000/assets/video/walkthrough.en.vtt",
+		TranscriptURL: "http://localhost:3000/how-instagram7-works#transcript",
+		Transcript:    "Copy the Reel link, convert it, and send it.",
 		UploadDate:    "2026-08-02",
 		Duration:      "PT45S",
 	}
@@ -58,8 +58,8 @@ func TestHowInstagram7WorksRendersCompleteFutureVideo(t *testing.T) {
 		`kind="captions"`,
 		`Read the video transcript`,
 		`"@type":"VideoObject"`,
-		`"contentUrl":"https://www.instagram7.com/assets/video/walkthrough.mp4"`,
-		`"thumbnailUrl":["https://www.instagram7.com/assets/video/walkthrough-poster.webp"]`,
+		`"contentUrl":"http://localhost:3000/assets/video/walkthrough.mp4"`,
+		`"thumbnailUrl":["http://localhost:3000/assets/video/walkthrough-poster.webp"]`,
 	} {
 		if !strings.Contains(html, check) {
 			t.Fatalf("video page output missing %q", check)
