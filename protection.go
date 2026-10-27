@@ -17,6 +17,7 @@ const (
 	protectUniqueWindow = 10 * time.Minute
 	protectRetryAfter   = 30
 	unknownProxyClient  = "proxy-unknown"
+	cloudflareCrossZoneWorkerIP = "2a06:98c0:3600::103"
 )
 
 type routeCost string
@@ -352,6 +353,14 @@ func clientIP(r *http.Request) string {
 	}
 	remoteIP := net.ParseIP(remoteHost)
 	if remoteIP != nil && (remoteIP.IsLoopback() || remoteIP.IsPrivate()) {
+		// Cloudflare uses a fixed synthetic visitor IP for cross-zone Worker
+		// subrequests. Treat it as unknown only behind a trusted local/private
+		// reverse proxy; never let public clients spoof CF headers to change
+		// rate-limit identity.
+		if strings.TrimSpace(r.Header.Get("CF-Worker")) != "" &&
+			strings.TrimSpace(r.Header.Get("CF-Connecting-IP")) == cloudflareCrossZoneWorkerIP {
+			return unknownProxyClient
+		}
 		for _, header := range []string{"CF-Connecting-IP", "X-Real-IP", "X-Forwarded-For"} {
 			value := r.Header.Get(header)
 			if value == "" {

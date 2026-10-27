@@ -359,7 +359,9 @@ func RefreshVideoFromPublicGraphQL(postID string) (*InstaData, error) {
 	ret, err, _ := sflightScraper.Do(postID+":public-video-refresh", func() (interface{}, error) {
 		body, err := scrapeFromGQLMobile(postID)
 		if err != nil || !graphQLBodyHasMedia(body) {
-			body, err = scrapeFromGQL(postID)
+			// A mobile GraphQL retry already ran; try the web-only query once
+			// without re-entering the mobile/proxy recovery chain.
+			body, err = scrapeFromGQLWeb(postID)
 			if err != nil {
 				return nil, err
 			}
