@@ -38,6 +38,10 @@ func init() {
 }
 
 func main() {
+	if os.Getenv("INSTAFIX_PUBLIC_BASE_URL") != "" && views.ConfiguredPublicBaseURL() == "" {
+		slog.Error("invalid INSTAFIX_PUBLIC_BASE_URL: expected an http(s) origin without path, query or credentials")
+		os.Exit(2)
+	}
 	defaultListen := "0.0.0.0:3000"
 	if port := strings.TrimSpace(os.Getenv("PORT")); port != "" {
 		defaultListen = "0.0.0.0:" + port
