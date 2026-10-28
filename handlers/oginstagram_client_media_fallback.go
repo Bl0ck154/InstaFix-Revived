@@ -52,8 +52,19 @@ func telegramPreviewProbeVideoURL(r *http.Request, publicBaseURL, postID string,
 // og:video URL, so the media URL itself must point at the upstream. The
 // production server never fetches the upstream.
 func TryOGInstagramClientMediaFallback(w http.ResponseWriter, r *http.Request, postID string, mediaNum int, viewsData *model.ViewsData, item *scraper.InstaData, scrapeErr error) bool {
+	return tryOGInstagramClientMediaFallback(w, r, postID, mediaNum, viewsData, item, scrapeErr, false)
+}
+
+// Permits /p/ links only after the caller has independently classified
+// the publication as a video. Unclassified photo posts remain unchanged.
+func TryOGInstagramClientMediaFallbackForKnownVideo(w http.ResponseWriter, r *http.Request, postID string, mediaNum int, viewsData *model.ViewsData, item *scraper.InstaData, scrapeErr error) bool {
+	return tryOGInstagramClientMediaFallback(w, r, postID, mediaNum, viewsData, item, scrapeErr, true)
+}
+
+func tryOGInstagramClientMediaFallback(w http.ResponseWriter, r *http.Request, postID string, mediaNum int, viewsData *model.ViewsData, item *scraper.InstaData, scrapeErr error, allowPostAlias bool) bool {
+	allowedPath := isVideoPublicationPath(r.URL.Path) || (allowPostAlias && strings.Contains(r.URL.Path, "/p/"))
 	if strings.ToLower(strings.TrimSpace(os.Getenv(ogInstagramClientMediaFallbackModeEnv))) != ogInstagramClientMediaFallbackTelegram ||
-		!isTelegramBot(r.UserAgent()) || !isVideoPublicationPath(r.URL.Path) {
+		!isTelegramBot(r.UserAgent()) || !allowedPath {
 		return false
 	}
 
