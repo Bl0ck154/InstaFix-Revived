@@ -86,12 +86,27 @@ func EmbedStateless(w http.ResponseWriter, r *http.Request) {
 		item, err = scraper.GetDataPreferVideoQuiet(postID)
 	} else {
 		item, err = scraper.GetDataQuiet(postID)
-		if err != nil || item == nil || len(item.Medias) == 0 {
+		if upgraded, upgradeErr, ok := tryVideoUpgradeForPostAlias(r, postID, item, err); ok {
+			item, err, preferVideo = upgraded, upgradeErr, true
+		} else if err != nil || item == nil || len(item.Medias) == 0 {
 			if videoItem, videoErr := scraper.GetDataPreferVideoQuiet(postID); videoErr == nil && videoItem != nil && videoItem.HasVideo() {
 				item = videoItem
 				err = nil
 				preferVideo = true
 			}
+		}
+	}
+	trackTelegramVideo = isTelegramBot(userAgent) && preferVideo && r.URL.Query().Get("original") != "1" && r.URL.Query().Get("tgdiag") == ""
+	if preferVideo && item != nil && isPreviewMediaBot(userAgent) && (item.Username == "" || item.Caption == "") {
+		_ = scraper.EnrichMetadataFromJina(item)
+	}
+	// A /p/ Reel confirmed by the crawler or Jina may have a poster but no
+	// playable direct video; let Telegram request the public client-media
+	// endpoint instead of advertising a still image as the Reel.
+	if preferVideo && isTelegramBot(userAgent) && strings.Contains(r.URL.Path, "/p/") &&
+		(item == nil || !item.HasVideo()) {
+		if TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, err) {
+			return
 		}
 	}
 	if err != nil || item == nil || len(item.Medias) == 0 {
