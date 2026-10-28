@@ -27,5 +27,7 @@ jobs:
         run: go test ./...
       - name: Go build
         run: go build ./...
+      - name: Validate Compose example
+        run: docker compose -f docker-compose.example.yml config --quiet
       - name: Docker image build
         run: docker build -t instafix-revived:verify .

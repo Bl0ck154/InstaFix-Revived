@@ -19,6 +19,8 @@ The hosted demo is currently unavailable. You can run InstaFix Revived yourself 
 ```sh
 git clone https://github.com/Bl0ck154/InstaFix-Revived.git
 cd InstaFix-Revived
+cp .env.example .env
+# Edit .env for your neutral public origin and optional recovery settings.
 docker compose -f docker-compose.example.yml up -d --build
 ```
 
