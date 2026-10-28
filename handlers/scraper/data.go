@@ -1818,7 +1818,7 @@ func scrapeFromEmbedHTML(embedHTML []byte) (string, error) {
 	}
 
 	// Get username
-	username := doc.Find(".UsernameText").Text()
+	username := doc.Find(".UsernameText").First().Text()
 
 	// Get caption
 	captionComments := doc.Find(".CaptionComments")

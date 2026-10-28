@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"strings"
+	"os"
 	"testing"
 )
 
@@ -13,7 +13,7 @@ func TestInitEphemeralDBUsesDisposableBackend(t *testing.T) {
 		t.Fatalf("InitEphemeralDB() error = %v", err)
 	}
 	backend := EphemeralCacheBackend()
-	if !strings.HasPrefix(backend, "tmpfs:/dev/shm") && !strings.HasPrefix(backend, "tmp:/tmp") {
+	if backend != "tmpfs:/dev/shm" && backend != "tmp:"+os.TempDir() {
 		_ = CloseDB()
 		t.Fatalf("unexpected ephemeral cache backend %q", backend)
 	}

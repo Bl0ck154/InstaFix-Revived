@@ -549,6 +549,9 @@ func previewURLKind(raw string) string {
 }
 
 func instagramOriginURL(requestPath, postID string) string {
+	if strings.Contains(requestPath, "/stories/") {
+		return "https://www.instagram.com" + requestPath
+	}
 	postType := "p"
 	switch {
 	case strings.Contains(requestPath, "/reel/"), strings.Contains(requestPath, "/reels/"):

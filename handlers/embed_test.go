@@ -132,6 +132,23 @@ func TestInstagramOriginURLNormalizesReels(t *testing.T) {
 	}
 }
 
+func TestInstagramOriginURLPreservesPublicationTypes(t *testing.T) {
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{path: "/p/DaJlro2MFT6/", want: "https://www.instagram.com/p/DaJlro2MFT6/"},
+		{path: "/creator/p/DaJlro2MFT6/4", want: "https://www.instagram.com/p/DaJlro2MFT6/"},
+		{path: "/reel/DaJlro2MFT6/", want: "https://www.instagram.com/reel/DaJlro2MFT6/"},
+		{path: "/tv/DaJlro2MFT6/", want: "https://www.instagram.com/tv/DaJlro2MFT6/"},
+		{path: "/stories/creator/1234567890123456789/", want: "https://www.instagram.com/stories/creator/1234567890123456789/"},
+	} {
+		if got := instagramOriginURL(tc.path, "DaJlro2MFT6"); got != tc.want {
+			t.Errorf("instagramOriginURL(%q)=%q, want %q", tc.path, got, tc.want)
+		}
+	}
+}
+
 func TestEmbedDescriptionIncludesOnlyAvailableStats(t *testing.T) {
 	item := &scraper.InstaData{
 		Caption:         "caption",
