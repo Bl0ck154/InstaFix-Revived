@@ -100,14 +100,12 @@ func EmbedStateless(w http.ResponseWriter, r *http.Request) {
 	if preferVideo && item != nil && isPreviewMediaBot(userAgent) && (item.Username == "" || item.Caption == "") {
 		_ = scraper.EnrichMetadataFromJina(item)
 	}
-	// A /p/ Reel confirmed by the crawler or Jina may have a poster but no
-	// playable direct video; let Telegram request the public client-media
-	// endpoint instead of advertising a still image as the Reel.
-	if preferVideo && isTelegramBot(userAgent) && strings.Contains(r.URL.Path, "/p/") &&
-		(item == nil || !item.HasVideo()) {
-		if TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, err) {
-			return
-		}
+	// When the media resolver returned only a Reel poster (or no media at
+	// all), advertise the configured client-only media endpoint to Telegram.
+	// This also covers confirmed /p/ aliases, without affecting photo posts
+	// or complete locally resolved videos.
+	if tryStatelessTelegramClientMediaFallback(w, r, postID, mediaNum, preferVideo, viewsData, item, err) {
+		return
 	}
 	if err != nil || item == nil || len(item.Medias) == 0 {
 		setStatelessFallbackCacheHeaders(w)
@@ -361,6 +359,16 @@ func EmbedStateless(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	views.Embed(viewsData, w)
+}
+
+func tryStatelessTelegramClientMediaFallback(w http.ResponseWriter, r *http.Request, postID string, mediaNum int, preferVideo bool, viewsData *model.ViewsData, item *scraper.InstaData, scrapeErr error) bool {
+	if !preferVideo || (item != nil && len(item.Medias) > 0 && item.HasVideo()) {
+		return false
+	}
+	if scrapeErr == nil {
+		scrapeErr = scraper.ErrNotFound
+	}
+	return TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, scrapeErr)
 }
 
 func redirectStatelessNoStore(w http.ResponseWriter, r *http.Request, target string) {
