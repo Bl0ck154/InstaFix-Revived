@@ -260,6 +260,21 @@ func getDataPreferVideo(postID string, recordScrape bool) (*InstaData, error) {
 		}
 		return item, nil
 	}
+	// When logged-out GraphQL returns an image shell for a Reel, the public
+	// crawler page can still contain a complete media object. Keep this
+	// fallback proxy-safe and separate from authenticated scraping.
+	if envBool("INSTAFIX_CRAWLER_PAGE_FALLBACK", true) {
+		if crawlerItem, crawlerErr := RefreshVideoFromCrawlerPage(postID); crawlerErr == nil && crawlerItem.HasVideo() {
+			mergeAvailableMetadata(crawlerItem, item)
+			mergeMediaPresentation(crawlerItem, item)
+			if saveErr := saveDataToCache(crawlerItem); saveErr != nil {
+				slog.Debug("Failed to save crawler-page video refresh", "postID", postID, "err", saveErr)
+			}
+			return crawlerItem, nil
+		} else if crawlerErr != nil {
+			slog.Debug("Crawler-page video refresh unavailable", "postID", postID, "err", crawlerErr)
+		}
+	}
 	if shouldTryPublicVideoRefresh(postID) {
 		if refreshed, refreshErr := RefreshVideoFromPublicGraphQL(postID); refreshErr == nil && refreshed.HasVideo() {
 			mergeAvailableMetadata(refreshed, item)
