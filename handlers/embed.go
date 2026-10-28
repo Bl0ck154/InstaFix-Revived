@@ -261,8 +261,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		viewsData.OGType = "article"
 		sb.WriteString(publicBaseURL + "/grid/")
 		sb.WriteString(postID)
-		viewsData.ImageURL = sb.String()
-		viewsData.ImageURLs = carouselImageURLs(publicBaseURL, postID, item.Medias, 3)
+		viewsData.ImageURL, viewsData.ImageURLs = carouselPreviewImages(publicBaseURL, postID, item.Medias, userAgent)
 		if isDirect {
 			sb.Reset()
 			sb.WriteString(publicBaseURL + "/offload/")
@@ -619,6 +618,18 @@ func safeURLHost(raw string) string {
 		return "invalid"
 	}
 	return u.Host
+}
+
+func carouselPreviewImages(publicBaseURL, postID string, medias []scraper.Media, userAgent string) (string, []string) {
+	if strings.Contains(strings.ToLower(userAgent), "discordbot") {
+		// Discord displays up to four images. A grid plus individual images
+		// duplicates the carousel (and duplicates image 1 if grid decoding fails).
+		urls := carouselImageURLs(publicBaseURL, postID, medias, 4)
+		if len(urls) > 0 {
+			return urls[0], urls[1:]
+		}
+	}
+	return publicBaseURL + "/grid/" + postID, carouselImageURLs(publicBaseURL, postID, medias, 3)
 }
 
 func carouselImageURLs(publicBaseURL, postID string, medias []scraper.Media, limit int) []string {

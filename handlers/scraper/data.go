@@ -293,7 +293,10 @@ func getDataPreferVideo(postID string, recordScrape bool) (*InstaData, error) {
 		}
 		return item, nil
 	}
-	refreshed, refreshErr := RefreshDataFromAuthHelper(postID)
+	// Compare the auth result before publishing it to the shared cache. A
+	// thumbnail-only response must never temporarily replace a full carousel
+	// while concurrent image requests are resolving its published indexes.
+	refreshed, refreshErr := FetchDataFromAuthHelperUncached(postID)
 	if refreshErr == nil && len(refreshed.Medias) > 0 {
 		mergeAvailableMetadata(refreshed, item)
 		if !refreshed.HasVideo() && item != nil && len(item.Medias) > 0 {
@@ -1357,14 +1360,38 @@ func parseGraphQLMediaData(i *InstaData, gqlData gjson.Result) error {
 }
 
 func graphQLMediaRoot(gqlData gjson.Result) (gjson.Result, string) {
-	for _, path := range []string{"shortcode_media", "xdt_shortcode_media"} {
-		if item := gqlData.Get(path); presentResult(item) {
-			return item, "xdt"
+	var v1Item, xdtItem gjson.Result
+	v1Count, xdtCount := 0, 0
+
+	if item := gqlData.Get("xdt_api__v1__media__shortcode__web_info.items.0"); presentResult(item) {
+		v1Item = item
+		v1Count = len(item.Get("carousel_media").Array())
+		if v1Count == 0 {
+			v1Count = 1
 		}
 	}
-	if item := gqlData.Get("xdt_api__v1__media__shortcode__web_info.items.0"); presentResult(item) {
-		return item, "v1"
+
+	for _, path := range []string{"shortcode_media", "xdt_shortcode_media"} {
+		if item := gqlData.Get(path); presentResult(item) {
+			xdtItem = item
+			xdtCount = len(item.Get("edge_sidecar_to_children.edges").Array())
+			if xdtCount == 0 {
+				xdtCount = len(item.Get("carousel_media").Array())
+			}
+			if xdtCount == 0 {
+				xdtCount = 1
+			}
+			break
+		}
 	}
+
+	if presentResult(v1Item) && v1Count >= xdtCount {
+		return v1Item, "v1"
+	}
+	if presentResult(xdtItem) {
+		return xdtItem, "xdt"
+	}
+
 	return gjson.Result{}, ""
 }
 
@@ -1378,6 +1405,8 @@ func parseXDTMediaData(i *InstaData, item gjson.Result) error {
 	media := []gjson.Result{item}
 	if edges := item.Get("edge_sidecar_to_children.edges"); len(edges.Array()) > 0 {
 		media = edges.Array()
+	} else if carousel := item.Get("carousel_media"); len(carousel.Array()) > 0 {
+		media = carousel.Array()
 	}
 	if len(media) > maxMediaItems {
 		media = media[:maxMediaItems]
