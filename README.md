@@ -24,6 +24,8 @@ docker compose -f docker-compose.example.yml up -d --build
 
 The example binds the app to `127.0.0.1:3000` by default. Use your own hostname and an HTTPS reverse proxy if you want to make it public. The optional authenticated helper is disabled unless you select its Compose profile and provide your own cookie file. See [TESTING.md](TESTING.md) and [`.env.example`](.env.example) for other options.
 
+**Reel recovery:** When a public Reel is unavailable through logged-out GraphQL, InstaFix can try Instagram's crawler-rendered page and recognize Reel links shared under `/p/`. The optional Jina metadata reader is disabled by default; enable `INSTAFIX_JINA_METADATA_FALLBACK=true` only if you agree to send public post URLs to that external service. Jina supplies metadata/classification, never media bytes. All crawler requests honor the configured proxy-only restrictions.
+
 **Domain configuration:** Set `INSTAFIX_PUBLIC_BASE_URL=https://previews.your-domain.example` before starting your public instance. The converter, canonical links, sitemap, robots.txt and preview metadata then use that origin instead of any previous deployment's hostname. Use a neutral name to avoid trademark problems.
 
 ## Preview

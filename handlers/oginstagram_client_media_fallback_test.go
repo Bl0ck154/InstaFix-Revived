@@ -327,3 +327,21 @@ func TestPreviewTitleFromRealCaption(t *testing.T) {
 		t.Fatalf("truncated unicode title is invalid: %q (%d runes)", title, got)
 	}
 }
+
+
+func TestKnownReelPostAliasPermitsTelegramClientMediaFallback(t *testing.T) {
+	t.Setenv("OGINSTAGRAM_CLIENT_MEDIA_FALLBACK_MODE", "telegram")
+	t.Setenv("OGINSTAGRAM_CLIENT_MEDIA_UPSTREAM", "https://d.oginstagram.example")
+	req := httptest.NewRequest(http.MethodGet, "https://preview.example.test/p/ConfirmedReel/", nil)
+	req.Header.Set("User-Agent", "TelegramBot")
+	rec := httptest.NewRecorder()
+	if TryOGInstagramClientMediaFallback(rec, req, "ConfirmedReel", 1, &model.ViewsData{}, nil, scraper.ErrNotFound) {
+		t.Fatal("unclassified /p link must not force Reel media fallback")
+	}
+	if !TryOGInstagramClientMediaFallbackForKnownVideo(rec, req, "ConfirmedReel", 1, &model.ViewsData{}, nil, scraper.ErrNotFound) {
+		t.Fatal("independently confirmed /p Reel must be supported")
+	}
+	if !strings.Contains(rec.Body.String(), "https://d.oginstagram.example/p/ConfirmedReel/") {
+		t.Fatalf("no direct client media URL in %s", rec.Body.String())
+	}
+}

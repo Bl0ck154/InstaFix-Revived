@@ -152,7 +152,9 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		item, err = scraper.GetDataQuiet(postID)
-		if err != nil || item == nil || len(item.Medias) == 0 || item.Username == "" {
+		if upgraded, upgradeErr, ok := tryVideoUpgradeForPostAlias(r, postID, item, err); ok {
+			item, err, preferVideo = upgraded, upgradeErr, true
+		} else if err != nil || item == nil || len(item.Medias) == 0 || item.Username == "" {
 			if videoItem, videoErr := scraper.GetDataPreferVideoQuiet(postID); videoErr == nil && videoItem != nil && videoItem.HasVideo() {
 				item = videoItem
 				err = nil
@@ -178,6 +180,9 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 			observability.Default.RecordAuthHelperSkipped(postID, "untrusted_client")
 		}
 	}
+	if preferVideo && item != nil && isPreviewMediaBot(userAgent) && (item.Username == "" || item.Caption == "") {
+		_ = scraper.EnrichMetadataFromJina(item) // optional, disabled unless explicitly enabled
+	}
 	proxyAttempted := false
 	if !isDirect && !isGallery && preferVideo && (item == nil || len(item.Medias) == 0 || !item.HasVideo()) {
 		fallbackErr := err
@@ -190,7 +195,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		if TryOGInstagramClientRedirect(w, r, postID, fallbackErr) {
 			return
 		}
-		if TryOGInstagramClientMediaFallback(w, r, postID, mediaNum, viewsData, item, fallbackErr) {
+		if TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, fallbackErr) {
 			return
 		}
 		proxyAttempted = true
@@ -225,7 +230,7 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		if !isDirect && !isGallery && TryOGInstagramClientRedirect(w, r, postID, scraper.ErrNotFound) {
 			return
 		}
-		if !isDirect && !isGallery && preferVideo && TryOGInstagramClientMediaFallback(w, r, postID, mediaNum, viewsData, item, scraper.ErrNotFound) {
+		if !isDirect && !isGallery && preferVideo && TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, scraper.ErrNotFound) {
 			return
 		}
 		if !isDirect && !isGallery && TryOGInstagramEmbedProxy(w, r, postID, trustedFallbackPreviewText(item)) {
@@ -274,13 +279,13 @@ func Embed(w http.ResponseWriter, r *http.Request) {
 		viewsData.ImageURL = sb.String()
 	default:
 		if isTelegram && (forceTelegramClientMediaFallback(postID) || !telegramLocalVideoPresentationUsable(media)) {
-			if TryOGInstagramClientMediaFallback(w, r, postID, mediaNum, viewsData, item, errors.New("Telegram local video metadata is incomplete")) {
+			if TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, errors.New("Telegram local video metadata is incomplete")) {
 				return
 			}
 		}
 		if isTelegram && isInlineVideoOversized(media.URL) {
 			videoOversized = true
-			if TryOGInstagramClientMediaFallback(w, r, postID, mediaNum, viewsData, item, errors.New("Telegram inline video exceeds configured byte limit")) {
+			if TryOGInstagramClientMediaFallbackForKnownVideo(w, r, postID, mediaNum, viewsData, item, errors.New("Telegram inline video exceeds configured byte limit")) {
 				return
 			}
 		}
@@ -429,6 +434,41 @@ func formatStatCount(value int64) string {
 
 func isTelegramBot(userAgent string) bool {
 	return strings.Contains(strings.ToLower(userAgent), "telegrambot")
+}
+
+// tryVideoUpgradeForPostAlias handles Instagram /p/{shortcode} links that
+// actually point at Reels. Route syntax alone is ambiguous, so preview bots
+// first use Instagram's crawler page and, if that is gated, Jina only to
+// classify the publication and recover metadata. Jina never supplies media.
+func tryVideoUpgradeForPostAlias(r *http.Request, postID string, item *scraper.InstaData, scrapeErr error) (*scraper.InstaData, error, bool) {
+	if r == nil || !strings.Contains(r.URL.Path, "/p/") || !isPreviewMediaBot(r.UserAgent()) {
+		return item, scrapeErr, false
+	}
+	if item != nil && item.HasVideo() {
+		return item, scrapeErr, true
+	}
+	videoItem, err := scraper.RefreshVideoFromCrawlerPage(postID)
+	if err == nil && videoItem != nil && videoItem.HasVideo() {
+		slog.Info("upgraded /p alias to Reel from crawler page", "postID", postID)
+		return videoItem, nil, true
+	}
+
+	probeItem := item
+	if probeItem == nil {
+		probeItem = &scraper.InstaData{PostID: postID}
+	} else if probeItem.PostID == "" {
+		probeItem.PostID = postID
+	}
+	isVideo, jinaErr := scraper.EnrichMetadataAndDetectVideoFromJina(probeItem)
+	if jinaErr != nil {
+		slog.Debug("Jina /p alias classification unavailable", "postID", postID, "err", jinaErr)
+		return item, scrapeErr, false
+	}
+	if !isVideo {
+		return item, scrapeErr, false
+	}
+	slog.Info("upgraded /p alias to Reel from Jina publication metadata", "postID", postID)
+	return probeItem, scrapeErr, true
 }
 
 func logEmbedDecision(r *http.Request, postID string, preferVideo bool, mediaNum int, item *scraper.InstaData, media scraper.Media, viewsData *model.ViewsData, err error, isTelegram bool, videoOversized bool, outcome string) {
