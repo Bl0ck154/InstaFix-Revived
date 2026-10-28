@@ -73,3 +73,15 @@ URL Source: http://www.instagram.com/p/PhotoCode123/
 		t.Fatal("photo-only Jina body must not be classified as video")
 	}
 }
+
+
+func TestJinaMetadataIsOptIn(t *testing.T) {
+	t.Setenv("INSTAFIX_JINA_METADATA_FALLBACK", "false")
+	item := &InstaData{PostID: "PublicReel123"}
+	if err := EnrichMetadataFromJina(item); err == nil {
+		t.Fatal("metadata reader should not run while disabled")
+	}
+	if isVideo, err := EnrichMetadataAndDetectVideoFromJina(item); err == nil || isVideo {
+		t.Fatalf("disabled Jina classifier returned video=%t, err=%v", isVideo, err)
+	}
+}
