@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/tidwall/gjson"
@@ -58,4 +59,22 @@ func parseCrawlerMediaFixture(postID string, raw []byte) (*InstaData, error) {
 		return nil, err
 	}
 	return item, nil
+}
+
+
+func TestCrawlerPageHonorsProxyOnlyPolicy(t *testing.T) {
+	t.Setenv("INSTAFIX_PUBLIC_PROXY_ONLY", "true")
+	publicProxyMu.Lock()
+	original := publicProxyURLs
+	publicProxyURLs = nil
+	publicProxyMu.Unlock()
+	t.Cleanup(func() {
+		publicProxyMu.Lock()
+		publicProxyURLs = original
+		publicProxyMu.Unlock()
+	})
+	if _, err := scrapeCrawlerPageMedia("ValidPost123"); err == nil ||
+		!strings.Contains(err.Error(), "proxy-only") {
+		t.Fatalf("crawler must fail closed without a public proxy: %v", err)
+	}
 }
