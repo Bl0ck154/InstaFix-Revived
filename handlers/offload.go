@@ -16,6 +16,8 @@ import (
 )
 
 var (
+	offloadGetData                 = scraper.GetData
+	offloadGetDataQuiet            = scraper.GetDataQuiet
 	offloadGetDataPreferVideo      = scraper.GetDataPreferVideo
 	offloadGetDataPreferVideoQuiet = scraper.GetDataPreferVideoQuiet
 	offloadRefreshDataPreferVideo  = scraper.RefreshDataPreferVideo
@@ -145,10 +147,17 @@ func probeVideoURL(r *http.Request, videoURL string) error {
 }
 
 func getOffloadData(r *http.Request, postID string) (*scraper.InstaData, error) {
-	if isPreviewMediaBot(r.UserAgent()) {
-		return offloadGetDataPreferVideo(postID)
+	// Image and carousel URLs must retain the same media list used by Embed.
+	// Asking for video on an image-only post can trigger an unrelated auth
+	// refresh with fewer media, invalidating already-published image indexes.
+	getData, getDataQuiet := offloadGetData, offloadGetDataQuiet
+	if strings.HasSuffix(chi.URLParam(r, "mediaNum"), ".mp4") || strings.HasPrefix(r.URL.Path, "/videos/") {
+		getData, getDataQuiet = offloadGetDataPreferVideo, offloadGetDataPreferVideoQuiet
 	}
-	item, err := offloadGetDataPreferVideoQuiet(postID)
+	if isPreviewMediaBot(r.UserAgent()) {
+		return getData(postID)
+	}
+	item, err := getDataQuiet(postID)
 	if err != nil && scraper.AuthHelperURL != "" {
 		observability.Default.RecordAuthHelperSkipped(postID, "untrusted_media_client")
 	}
