@@ -1,6 +1,8 @@
 name: Verify Go build and self-hosting
 
 on:
+  push:
+    branches: ['validation/pr11-dyskal']
   pull_request:
     paths:
       - '**/*.go'
