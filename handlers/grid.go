@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
+	_ "image/png"
 	scraper "instafix/handlers/scraper"
 	"io"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/RyanCarrier/dijkstra/v2"
 	"github.com/go-chi/chi/v5"
 	"golang.org/x/image/draw"
+	_ "golang.org/x/image/webp"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -192,7 +194,7 @@ func decodeGridImage(client *http.Client, postID, mediaURL string) (image.Image,
 		return nil, 0, fmt.Errorf("grid image too large: downloaded more than %d bytes", maxGridImageBytes)
 	}
 
-	config, err := jpeg.DecodeConfig(bytes.NewReader(data))
+	config, _, err := image.DecodeConfig(bytes.NewReader(data))
 	if err != nil {
 		return nil, 0, err
 	}
@@ -204,7 +206,7 @@ func decodeGridImage(client *http.Client, postID, mediaURL string) (image.Image,
 		return nil, 0, fmt.Errorf("grid image dimensions too large: %dx%d", config.Width, config.Height)
 	}
 
-	img, err := jpeg.Decode(bytes.NewReader(data))
+	img, _, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, 0, err
 	}
