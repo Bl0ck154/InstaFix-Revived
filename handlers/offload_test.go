@@ -27,17 +27,23 @@ func offloadRequest(t *testing.T, method, target, postID, mediaNum string) *http
 
 func stubOffloadData(t *testing.T, item *scraper.InstaData, refresh func(string) (*scraper.InstaData, error)) {
 	t.Helper()
+	oldGetData := offloadGetData
+	oldGetDataQuiet := offloadGetDataQuiet
 	oldGet := offloadGetDataPreferVideo
 	oldQuiet := offloadGetDataPreferVideoQuiet
 	oldRefresh := offloadRefreshDataPreferVideo
 	oldClient := offloadVideoClient
 	oldAllowed := offloadMediaURLAllowed
+	offloadGetData = func(string) (*scraper.InstaData, error) { return item, nil }
+	offloadGetDataQuiet = func(string) (*scraper.InstaData, error) { return item, nil }
 	offloadGetDataPreferVideo = func(string) (*scraper.InstaData, error) { return item, nil }
 	offloadGetDataPreferVideoQuiet = func(string) (*scraper.InstaData, error) { return item, nil }
 	offloadRefreshDataPreferVideo = refresh
 	offloadVideoClient = &http.Client{}
 	offloadMediaURLAllowed = func(string) bool { return true }
 	t.Cleanup(func() {
+		offloadGetData = oldGetData
+		offloadGetDataQuiet = oldGetDataQuiet
 		offloadGetDataPreferVideo = oldGet
 		offloadGetDataPreferVideoQuiet = oldQuiet
 		offloadRefreshDataPreferVideo = oldRefresh
@@ -317,13 +323,13 @@ func TestGetOffloadDataUsesAuthOnlyForPreviewClients(t *testing.T) {
 		offloadGetDataPreferVideoQuiet = oldQuiet
 	})
 
-	generic := httptest.NewRequest(http.MethodGet, "https://instagram7.test/offload/DaGate01/1", nil)
+	generic := offloadRequest(t, http.MethodGet, "https://instagram7.test/offload/DaGate01/1.mp4", "DaGate01", "1.mp4")
 	generic.Header.Set("User-Agent", "python-requests/2.32")
 	if _, err := getOffloadData(generic, "DaGate01"); err != nil {
 		t.Fatal(err)
 	}
 
-	preview := httptest.NewRequest(http.MethodGet, "https://instagram7.test/offload/DaGate01/1", nil)
+	preview := offloadRequest(t, http.MethodGet, "https://instagram7.test/offload/DaGate01/1.mp4", "DaGate01", "1.mp4")
 	preview.Header.Set("User-Agent", "Slackbot-LinkExpanding 1.0")
 	if _, err := getOffloadData(preview, "DaGate01"); err != nil {
 		t.Fatal(err)
