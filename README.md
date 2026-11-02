@@ -68,6 +68,10 @@ Instagram links often preview poorly outside Instagram. Sometimes the caption is
 
 InstaFix Revived sits between the chat app and Instagram, reads public metadata, and returns a small preview page with friendlier embed tags.
 
+## Related project
+
+Want to **automatically repost new Instagram photos, Reels and carousels to a Telegram channel**, instead of fixing link previews? See [Instagram → Telegram](https://github.com/Bl0ck154/instagram-to-telegram). It uses GitHub Actions and Apify and does not require a running server or an Instagram password for public profiles. The projects are independent.
+
 ## Support the project
 
 If you self-host this project or find the code useful, a star on GitHub helps a lot.
