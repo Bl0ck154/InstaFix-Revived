@@ -4,15 +4,13 @@
 
 **InstaFix Revived** is a maintained, lightweight continuation of [Wikidepia/InstaFix](https://github.com/Wikidepia/InstaFix). It fixes the boring/broken Instagram embeds you often get in Telegram, Discord, Slack, WhatsApp, and other chat apps by serving cleaner OpenGraph/Twitter-card preview pages.
 
-## A note on domains and trademarks
+## Preview
 
-A public deployment of this project was taken offline after a trademark complaint about its domain name. The source code is still available here.
+Use a preview link from your own InstaFix Revived instance to get a cleaner embed in a chat app:
 
-It's an annoying risk with unofficial tools: a registrar can put a domain on hold while a trademark complaint is being handled, and the whole site can disappear overnight. Being open source or putting a "not affiliated" disclaimer on the page doesn't necessarily protect the domain name itself.
+<img src=".github/assets/orig_embed.jpg" width="450" alt="Fixed Instagram embed preview">
 
-If you're running your own instance, pick a neutral domain name that doesn't use someone else's trademark. Keep a backup of your DNS and deployment settings, too. Paying for a domain doesn't guarantee it'll stay reachable.
-
-## Run your own instance
+## Quick start: run your own instance
 
 The hosted demo is currently unavailable. You can run InstaFix Revived yourself on a domain you control. For a local test with Docker Compose:
 
@@ -29,12 +27,6 @@ The example binds the app to `127.0.0.1:3000` by default. Use your own hostname 
 **Reel recovery:** When a public Reel is unavailable through logged-out GraphQL, InstaFix can try Instagram's crawler-rendered page and recognize Reel links shared under `/p/`. The optional Jina metadata reader is disabled by default; enable `INSTAFIX_JINA_METADATA_FALLBACK=true` only if you agree to send public post URLs to that external service. Jina supplies metadata/classification, never media bytes. All crawler requests honor the configured proxy-only restrictions.
 
 **Domain configuration:** Set `INSTAFIX_PUBLIC_BASE_URL=https://previews.your-domain.example` before starting your public instance. The converter, canonical links, sitemap, robots.txt and preview metadata then use that origin instead of any previous deployment's hostname. Use a neutral name to avoid trademark problems.
-
-## Preview
-
-Use a preview link from your own InstaFix Revived instance to get a cleaner embed in a chat app:
-
-<img src=".github/assets/orig_embed.jpg" width="450" alt="Fixed Instagram embed preview">
 
 ## What it does
 
@@ -82,6 +74,10 @@ You can also support the maintainer here:
 - GitHub Sponsors: [github.com/sponsors/Bl0ck154](https://github.com/sponsors/Bl0ck154)
 - Buy Me a Coffee: [buymeacoffee.com/bl0ck](https://buymeacoffee.com/bl0ck)
 - PayPal: [paypal.me/IlliaZabolotskyi](https://paypal.me/IlliaZabolotskyi)
+
+## Deployment and trademark considerations
+
+The previous hosted demo is offline following a trademark complaint about its domain. The source remains available. Choose a neutral domain for self-hosting, keep backups of DNS and deployment configuration, and do not rely on project disclaimers as trademark protection.
 
 ## Attribution
 
