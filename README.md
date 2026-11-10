@@ -10,9 +10,15 @@ Use a preview link from your own InstaFix Revived instance to get a cleaner embe
 
 <img src=".github/assets/orig_embed.jpg" width="450" alt="Fixed Instagram embed preview">
 
+## Try a public test instance
+
+You can try an Instagram post or Reel preview at [fkinstagram.com](https://fkinstagram.com). Replace `instagram.com` with `fkinstagram.com` in a public post or Reel URL, then share the link in Telegram or Discord.
+
+This is an experimental public instance, not a staging environment deployed from this repository's `main` branch. It may run an older build, retain older branding, or be unavailable. Use a local checkout for reproducible tests. For long-term deployments, choose a domain that does not contain another company's trademark.
+
 ## Quick start: run your own instance
 
-The hosted demo is currently unavailable. You can run InstaFix Revived yourself on a domain you control. For a local test with Docker Compose:
+You can run InstaFix Revived yourself on a domain you control. For a local test with Docker Compose:
 
 ```sh
 git clone https://github.com/Bl0ck154/InstaFix-Revived.git
