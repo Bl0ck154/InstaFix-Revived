@@ -43,6 +43,7 @@ The example binds the app to `127.0.0.1:3000` by default. Use your own hostname 
 - Creates cleaner rich previews for public Instagram posts and Reels.
 - Shows author, caption, thumbnail, and media metadata where available.
 - Supports image and video preview routes.
+- Optionally serves public Instagram Highlight cover and selected-story image previews (`INSTAFIX_PUBLIC_HIGHLIGHTS_ENABLED=true`). Disabled by default; never uses Instagram cookies or authenticated recovery. Videos are represented by public thumbnails, not playable Highlight streams. Inaccessible Highlights fail closed.
 - Keeps normal browser media traffic lightweight with direct redirects.
 - Includes an optional local auth-helper for difficult/restricted cases.
 - Includes an optional public GraphQL proxy pool for anonymous fetches, disabled by default.
