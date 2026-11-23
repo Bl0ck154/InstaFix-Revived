@@ -607,13 +607,14 @@ def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False,
         location = response.headers.get("location", "")
         code = classify_redirect_location(location)
         if SAFE_OEMBED_REDIRECTS and "/api/v1/oembed/" in url:
+            current_url = url
             visited = {url}
             # At most two additional authenticated requests; each consumes
             # the normal auth rate budget and remains on the exact same host.
             for _ in range(2):
                 if code != "redirected":
                     break
-                next_url = same_origin_oembed_redirect(url, location)
+                next_url = same_origin_oembed_redirect(current_url, location)
                 if not next_url or next_url in visited:
                     break
                 if not allow_auth_request():
@@ -621,6 +622,7 @@ def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False,
                         response.close()
                     raise HelperError("auth_rate_limited", "authenticated redirect rate limited", 429)
                 visited.add(next_url)
+                current_url = next_url
                 with contextlib.suppress(Exception):
                     response.close()
                 response = requests.get(next_url, headers=headers, impersonate=IMPERSONATE, timeout=timeout or TIMEOUT, allow_redirects=False, stream=stream)
