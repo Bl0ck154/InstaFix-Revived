@@ -187,6 +187,9 @@ func main() {
 	r.Get("/reels/{postID}", embedHandler)
 	// Stories retain the legacy resolver during this experiment because they use
 	// media IDs and are outside the public Post/Reel acceptance corpus.
+	// Opt-in public Highlight previews never use an Instagram session cookie.
+	r.Get("/s/{postID}", handlers.HighlightEmbed)
+	r.Get("/stories/highlights/{postID}", handlers.HighlightEmbed)
 	r.Get("/stories/{username}/{postID}", handlers.Embed)
 	r.Get("/p/{postID}", embedHandler)
 	r.Get("/p/{postID}/{mediaNum}", embedHandler)

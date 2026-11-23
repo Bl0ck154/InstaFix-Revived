@@ -311,6 +311,10 @@ func classifyRequest(path string) routeInfo {
 		return routeInfo{cost: costEmbed, postID: partAt(parts, 1), hasPostID: len(parts) >= 2, checkCache: true}
 	case "reel", "reels", "tv":
 		return routeInfo{cost: costEmbed, postID: partAt(parts, 1), hasPostID: len(parts) >= 2, checkCache: true, modernShortcode: true}
+	case "s":
+		// The Highlight share token is validated in its dedicated handler.
+		// Its URL-safe base64 length does not match ordinary post shortcodes.
+		return routeInfo{cost: costEmbed}
 	case "stories":
 		return routeInfo{cost: costEmbed, postID: partAt(parts, 2), hasPostID: len(parts) >= 3, checkCache: true, numericStoryID: true}
 	default:
