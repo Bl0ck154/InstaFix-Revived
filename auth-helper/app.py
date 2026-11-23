@@ -9,7 +9,7 @@ import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, urlparse, urljoin, urlsplit
 
 from curl_cffi import requests
 
@@ -28,6 +28,7 @@ AUTH_NEGATIVE_CACHE_TTL_SECONDS = int(os.environ.get("AUTH_HELPER_AUTH_NEGATIVE_
 VERIFY_VIDEO_URL = os.environ.get("AUTH_HELPER_VERIFY_VIDEO_URL", "").strip().lower() in ("1", "true", "yes", "on")
 FETCH_VIDEO_INFO = os.environ.get("AUTH_HELPER_FETCH_VIDEO_INFO", "").strip().lower() in ("1", "true", "yes", "on")
 FETCH_MEDIA_INFO_FALLBACK = os.environ.get("AUTH_HELPER_FETCH_MEDIA_INFO_FALLBACK", "").strip().lower() in ("1", "true", "yes", "on")
+SAFE_OEMBED_REDIRECTS = os.environ.get("AUTH_HELPER_SAFE_OEMBED_REDIRECTS", "").strip().lower() in ("1", "true", "yes", "on")
 ENABLE_VIDEO_PROXY = os.environ.get("AUTH_HELPER_ENABLE_VIDEO_PROXY", "").strip().lower() in ("1", "true", "yes", "on")
 VIDEO_PROXY_SEND_COOKIE = os.environ.get("AUTH_HELPER_VIDEO_PROXY_SEND_COOKIE", "").strip().lower() in ("1", "true", "yes", "on")
 VIDEO_PROXY_REFRESH_MODE = os.environ.get("AUTH_HELPER_VIDEO_PROXY_REFRESH_MODE", "on_failure").strip().lower()
@@ -569,6 +570,34 @@ def allow_auth_request():
         return True
 
 
+
+def same_origin_oembed_redirect(current_url, location):
+    """Return a cookie-safe Instagram oEmbed redirect target or None.
+
+    Redirects to a different origin, protocol, port, or API family are
+    rejected. In particular, never forward a session cookie based on an
+    untrusted absolute Location header.
+    """
+    try:
+        current = urlsplit(current_url)
+        target = urlsplit(urljoin(current_url, location))
+        if not (
+            current.scheme == "https"
+            and current.hostname == "www.instagram.com"
+            and current.port in (None, 443)
+            and target.scheme == "https"
+            and target.hostname == current.hostname
+            and target.port in (None, 443)
+            and target.username is None
+            and target.password is None
+            and target.path.startswith("/api/v1/oembed/")
+        ):
+            return None
+        return target.geturl()
+    except (ValueError, TypeError):
+        return None
+
+
 def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False, mark_account_failures=True):
     require_auth_available(post_id)
     if not allow_auth_request():
@@ -577,6 +606,28 @@ def auth_get(url, headers, post_id="", account=None, timeout=None, stream=False,
     if response.status_code in REDIRECT_STATUSES:
         location = response.headers.get("location", "")
         code = classify_redirect_location(location)
+        if SAFE_OEMBED_REDIRECTS and "/api/v1/oembed/" in url:
+            visited = {url}
+            # At most two additional authenticated requests; each consumes
+            # the normal auth rate budget and remains on the exact same host.
+            for _ in range(2):
+                if code != "redirected":
+                    break
+                next_url = same_origin_oembed_redirect(url, location)
+                if not next_url or next_url in visited:
+                    break
+                if not allow_auth_request():
+                    with contextlib.suppress(Exception):
+                        response.close()
+                    raise HelperError("auth_rate_limited", "authenticated redirect rate limited", 429)
+                visited.add(next_url)
+                with contextlib.suppress(Exception):
+                    response.close()
+                response = requests.get(next_url, headers=headers, impersonate=IMPERSONATE, timeout=timeout or TIMEOUT, allow_redirects=False, stream=stream)
+                if response.status_code not in REDIRECT_STATUSES:
+                    return response
+                location = response.headers.get("location", "")
+                code = classify_redirect_location(location)
         if mark_account_failures and code in AUTH_CIRCUIT_CODES:
             if account is not None:
                 mark_account_failure(account.account_id, code, post_id)
