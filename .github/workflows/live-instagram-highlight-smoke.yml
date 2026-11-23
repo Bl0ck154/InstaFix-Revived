@@ -1,0 +1,23 @@
+name: One-off real public Instagram Highlight smoke
+
+on:
+  push:
+    branches:
+      - test/live-instagram-highlight-smoke-20261123
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-public-highlights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.3'
+          cache: true
+      - name: Run public-only Highlight metadata smoke
+        run: go test -tags=live_highlights ./handlers/scraper -run '^TestLivePublicHighlights$' -v -count=1 -timeout 180s
