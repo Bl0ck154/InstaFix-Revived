@@ -50,6 +50,22 @@ class SafeOembedRedirectsTest(unittest.TestCase):
         finally:
             app.SAFE_OEMBED_REDIRECTS = original
 
+    def test_two_relative_oembed_redirects_use_current_url(self):
+        first = mock.Mock(status_code=302, headers={"location": "/api/v1/oembed/stage1"}, close=mock.Mock())
+        second = mock.Mock(status_code=302, headers={"location": "?page=2"}, close=mock.Mock())
+        third = mock.Mock(status_code=200, headers={}, close=mock.Mock())
+        original = app.SAFE_OEMBED_REDIRECTS
+        app.SAFE_OEMBED_REDIRECTS = True
+        try:
+            with mock.patch("app.require_auth_available"), mock.patch("app.allow_auth_request", return_value=True):
+                with mock.patch("app.requests.get", side_effect=[first, second, third]) as get:
+                    response = app.auth_get("https://www.instagram.com/api/v1/oembed/?url=post", {"cookie": "sessionid=secret"})
+                    self.assertIs(response, third)
+                    self.assertEqual(get.call_count, 3)
+                    self.assertEqual(get.call_args.args[0], "https://www.instagram.com/api/v1/oembed/stage1?page=2")
+        finally:
+            app.SAFE_OEMBED_REDIRECTS = original
+
     def test_external_redirect_never_receives_cookie(self):
         first = mock.Mock(status_code=302, headers={"location": "https://evil.example/api/v1/oembed/"}, close=mock.Mock())
         original = app.SAFE_OEMBED_REDIRECTS
