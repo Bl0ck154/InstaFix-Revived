@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"instafix/utils"
 	"net/http"
 	"strings"
+	"strconv"
 
 	"github.com/PuerkitoBio/goquery"
 )
@@ -15,7 +15,7 @@ import (
 // story was selected. It must not be used as the image for a selected story:
 // Instagram's collection Open Graph image is not necessarily that story's image.
 func GetHighlightPreviewNoAuth(highlightID string) (*InstaData, error) {
-	if !utils.ValidInstagramNumericID(highlightID) {
+	if !validPublicHighlightID(highlightID) {
 		return nil, errors.New("invalid highlight ID")
 	}
 	req, err := http.NewRequest(http.MethodGet, "https://www.instagram.com/stories/highlights/"+highlightID+"/", nil)
@@ -57,4 +57,12 @@ func GetHighlightPreviewNoAuth(highlightID string) (*InstaData, error) {
 		return nil, err
 	}
 	return item, nil
+}
+
+// Small, self-contained validation; the scraper package cannot import handlers.
+func validPublicHighlightID(id string) bool {
+    if len(id) == 0 || len(id) > 19 || id[0] == '0' { return false }
+    for _, ch := range id { if ch < '0' || ch > '9' { return false } }
+    _, err := strconv.ParseUint(id, 10, 64)
+    return err == nil
 }
