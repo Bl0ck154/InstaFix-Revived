@@ -12,11 +12,7 @@ Use a preview link from your own InstaFix Revived instance to get a cleaner embe
 
 ## Community deployments
 
-People are running their own InstaFix-based sites. Here are public instances shared with the project:
-
-- **[fkinstagram.com](https://fkinstagram.com)** — independently operated preview service using an older Instagram7-branded build. For a public post or Reel, replace `instagram.com` with `fkinstagram.com` in its URL and share it in a chat.
-
-These sites are run by third parties, not by the InstaFix Revived maintainer. They are not official demos or staging servers, may differ from the latest code in `main`, and can change or go offline without notice. Their operators are responsible for their own domains, content, and policies.
+Community deployments are run by third parties, not by the InstaFix Revived maintainer. They are not official demos or staging servers, may differ from the latest code in `main`, and can change or go offline without notice. Their operators are responsible for their own domains, content, and policies.
 
 **Run a public instance?** Open a pull request to add its URL and a short description to this section. Use a domain that respects others' trademarks.
 
