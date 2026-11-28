@@ -1,0 +1,26 @@
+name: Verify auth helper
+
+on:
+  pull_request:
+    paths:
+      - 'auth-helper/**'
+      - '.github/workflows/verify-auth-helper.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  auth-unit-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install pinned auth-helper dependencies
+        run: python -m pip install -r auth-helper/requirements.txt
+      - name: Run all auth-helper unit tests
+        working-directory: auth-helper
+        run: python -m unittest discover -p 'test_*.py' -v
